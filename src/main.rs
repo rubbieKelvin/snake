@@ -27,11 +27,18 @@ impl Vector2D {
     fn zero() -> Self {
         return Vector2D { x: 0f32, y: 0f32 };
     }
+
+    fn copy(&self) -> Self {
+        return Vector2D::new(self.x, self.y);
+    }
 }
 
 struct SnakeCell {
     position: Point,
     direction: Vector2D,
+    // just a flag to tell if the swallowed egg is at this point in the cell
+    // this flag is just for asthetics
+    just_swallowed_egg: bool,
 }
 
 impl SnakeCell {
@@ -39,6 +46,15 @@ impl SnakeCell {
         return SnakeCell {
             position: pos,
             direction,
+            just_swallowed_egg: false,
+        };
+    }
+
+    fn copy(&self) -> Self {
+        return SnakeCell {
+            position: Point::new(self.position.x, self.position.y),
+            direction: self.direction.copy(),
+            just_swallowed_egg: self.just_swallowed_egg,
         };
     }
 }
@@ -89,6 +105,7 @@ fn main() {
     let mut score: u16 = 0;
 
     let mut snake_cell_movement_timer = Timer::new(0.18);
+    let mut egg_in_snake_body_timer = Timer::new(0.025);
 
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
@@ -145,9 +162,11 @@ fn main() {
         // process data here...
         // see if we ate the egg
         {
-            let first_cell = &snake[0];
+            let first_cell = &mut snake[0];
 
             if first_cell.position.x == egg_rect.x && first_cell.position.y == egg_rect.y {
+                first_cell.just_swallowed_egg = true;
+
                 // increase score
                 score += 1;
 
@@ -170,20 +189,21 @@ fn main() {
         // process cell movement
         if snake_cell_movement_timer.triggered() {
             // move each cells direction to the one behind it
-            // create a copy of the directions
-            let directions_list = snake
+            // create a copy of the snake
+            let snake_clone = snake
                 .iter()
-                .map(|cell| Vector2D::new(cell.direction.x, cell.direction.y))
-                .collect::<Vec<Vector2D>>();
+                .map(|cell| cell.copy())
+                .collect::<Vec<SnakeCell>>();
 
+            // set direction for cells
             for (index, cell) in snake.iter_mut().enumerate().rev() {
                 // since we're iterating in reverse..
                 if index == 0 {
                     break;
                 };
 
-                if let Some(dir_at_the_front) = directions_list.get(index - 1) {
-                    cell.direction = Vector2D::new(dir_at_the_front.x, dir_at_the_front.y);
+                if let Some(copied_cell) = snake_clone.get(index - 1) {
+                    cell.direction = copied_cell.direction.copy();
                 }
             }
 
@@ -212,10 +232,24 @@ fn main() {
             }
         }
 
+        if egg_in_snake_body_timer.triggered() {
+            // paint where the egg is at in the snakes body
+            let mut holding_egg = false;
+            for cell in snake.iter_mut() {
+                if cell.just_swallowed_egg {
+                    cell.just_swallowed_egg = false;
+                    holding_egg = true;
+                    continue;
+                }
+
+                if holding_egg {
+                    cell.just_swallowed_egg = true;
+                    holding_egg = false;
+                }
+            }
+        }
+
         // then render ..
-        // draw bounding rect
-        // canvas.set_draw_color(Color::RGB(50, 50, 50));
-        // canvas.draw_rect(bounding_rect).unwrap();
 
         // draw egg
         canvas.set_draw_color(Color::YELLOW);
@@ -233,9 +267,13 @@ fn main() {
         for (index, cell) in snake.iter().enumerate() {
             let rect = Rect::new(cell.position.x, cell.position.y, SNAKE_W, SNAKE_H);
 
-            let ratio = (index as f32 + 1f32) / (len as f32);
-            let iratio = ((len - index) as f32 + 1f32) / (len as f32);
-            let color = Color::RGB((255f32 * ratio) as u8, 100, (160f32 * iratio) as u8);
+            let color = if cell.just_swallowed_egg {
+                Color::CYAN
+            } else {
+                let ratio = (index as f32 + 1f32) / (len as f32);
+                let iratio = ((len - index) as f32 + 1f32) / (len as f32);
+                Color::RGB((255f32 * ratio) as u8, 100, (160f32 * iratio) as u8)
+            };
 
             canvas.set_draw_color(color);
             canvas.fill_rect(rect).unwrap();
@@ -250,5 +288,6 @@ fn main() {
 
         // tick clocks
         snake_cell_movement_timer.tick(time_gone);
+        egg_in_snake_body_timer.tick(time_gone);
     }
 }
