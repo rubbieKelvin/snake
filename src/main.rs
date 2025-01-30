@@ -193,13 +193,20 @@ fn main() {
                 let mut new_x = cell.position.x + (cell.direction.x as i32 * SNAKE_W as i32);
                 let mut new_y = cell.position.y + (cell.direction.y as i32 * SNAKE_H as i32);
 
-                // allow teleporting in window
+                // allow teleporting on window border
                 if new_x >= WINDOW_W as i32 {
-                    new_x = 0
+                    new_x = 0;
                 };
                 if new_x < 0 {
-                    new_x = WINDOW_W as i32
+                    new_x = WINDOW_W as i32;
                 };
+
+                if new_y >= WINDOW_H as i32 {
+                    new_y = 0;
+                }
+                if new_y < 0 {
+                    new_y = WINDOW_H as i32;
+                }
 
                 cell.position = Point::new(new_x, new_y);
             }
