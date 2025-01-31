@@ -7,97 +7,13 @@ use sdl2::{
     rect::{Point, Rect},
 };
 
-const SNAKE_W: u32 = 20;
-const SNAKE_H: u32 = 20;
+use constants::*;
+use objs::{Collectible, CollectibleType, SnakeCell, Timer, Vector2D};
+use utils::random_position_on_screen;
 
-const WINDOW_W: u32 = 1400;
-const WINDOW_H: u32 = 800;
-
-struct Vector2D {
-    x: f32,
-    y: f32,
-}
-
-impl Vector2D {
-    fn new(x: f32, y: f32) -> Self {
-        return Vector2D { x, y };
-    }
-
-    #[allow(unused)]
-    fn zero() -> Self {
-        return Vector2D { x: 0f32, y: 0f32 };
-    }
-
-    fn copy(&self) -> Self {
-        return Vector2D::new(self.x, self.y);
-    }
-}
-
-struct SnakeCell {
-    position: Point,
-    direction: Vector2D,
-    // just a flag to tell if the swallowed egg is at this point in the cell
-    // this flag is just for asthetics
-    just_swallowed_egg: bool,
-}
-
-impl SnakeCell {
-    fn new(pos: Point, direction: Vector2D) -> Self {
-        return SnakeCell {
-            position: pos,
-            direction,
-            just_swallowed_egg: false,
-        };
-    }
-
-    fn copy(&self) -> Self {
-        return SnakeCell {
-            position: Point::new(self.position.x, self.position.y),
-            direction: self.direction.copy(),
-            just_swallowed_egg: self.just_swallowed_egg,
-        };
-    }
-}
-
-struct Timer {
-    running: bool,
-    interval: f64,
-    counter: f64,
-}
-
-impl Timer {
-    fn new(interval: f64) -> Self {
-        return Timer {
-            running: true,
-            interval,
-            counter: 0.0,
-        };
-    }
-
-    fn triggered(&mut self) -> bool {
-        if self.counter >= self.interval {
-            self.counter = 0.0;
-            return true;
-        }
-        return false;
-    }
-
-    fn tick(&mut self, delta: f64) {
-        if self.running {
-            self.counter += delta;
-        }
-    }
-}
-
-fn random_position_on_screen() -> Point {
-    let x = rand::random_range(0..(WINDOW_W / SNAKE_W) as i32);
-    let y = rand::random_range(0..(WINDOW_H / SNAKE_H) as i32);
-    return Point::new(x * SNAKE_W as i32, y * SNAKE_H as i32);
-}
-
-fn rect_from_point(point: &Point, w: u32, h: u32) -> Rect {
-    return Rect::new(point.x, point.y, w, h);
-}
+mod constants;
+mod objs;
+mod utils;
 
 fn main() {
     #[allow(unused_variables)]
@@ -125,7 +41,17 @@ fn main() {
     ];
 
     // egg
-    let mut egg_rect = rect_from_point(&random_position_on_screen(), SNAKE_H, SNAKE_W);
+    let mut eggs: Vec<Collectible> = vec![Collectible {
+        position: random_position_on_screen(),
+        class: CollectibleType::Egg { special: false },
+    }];
+
+    let mut viruses = (1..10)
+        .map(|_| Collectible {
+            position: random_position_on_screen(),
+            class: CollectibleType::Virus,
+        })
+        .collect::<Vec<Collectible>>();
 
     // let bounding_rect = Rect::new(0, 0, WINDOW_W, WINDOW_H);
 
@@ -162,27 +88,55 @@ fn main() {
         // process data here...
         // see if we ate the egg
         {
-            let first_cell = &mut snake[0];
+            for egg in eggs.iter_mut() {
+                let first_cell = &mut snake[0];
 
-            if first_cell.position.x == egg_rect.x && first_cell.position.y == egg_rect.y {
-                first_cell.just_swallowed_egg = true;
+                let egg_rect = egg.rect();
 
-                // increase score
-                score += 1;
+                if first_cell.position.x == egg_rect.x && first_cell.position.y == egg_rect.y {
+                    first_cell.just_swallowed_egg = true;
 
-                // draw egg at another position
-                egg_rect = rect_from_point(&random_position_on_screen(), SNAKE_H, SNAKE_W);
+                    // increase score
+                    let credit = if let CollectibleType::Egg { special: true } = egg.class {
+                        3
+                    } else {
+                        1
+                    };
 
-                // add cell to snake
-                let last_cell = &snake[snake.len() - 1];
+                    score += credit;
 
-                snake.push(SnakeCell::new(
-                    Point::new(
-                        last_cell.position.x - (SNAKE_W as i32 * last_cell.direction.x as i32),
-                        last_cell.position.y - (SNAKE_H as i32 * last_cell.direction.y as i32),
-                    ),
-                    Vector2D::new(last_cell.direction.x, last_cell.direction.y),
-                ));
+                    // draw egg at another position
+                    egg.position = random_position_on_screen();
+                    egg.class = CollectibleType::Egg {
+                        special: rand::random_bool(0.3),
+                    };
+
+                    // add cell to snake
+                    let last_cell = &snake[snake.len() - 1];
+
+                    // TODO: there's a bug here
+                    // add a new cell to the snake at about the amount the user scored
+                    snake.append(
+                        &mut (0..credit)
+                            .map(|i| {
+                                // range is from 0 -> credit, so add one,
+                                let index = i + 1;
+
+                                SnakeCell::new(
+                                    Point::new(
+                                        last_cell.position.x
+                                            - ((SNAKE_W as i32 * last_cell.direction.x as i32)
+                                                * index as i32),
+                                        last_cell.position.y
+                                            - ((SNAKE_H as i32 * last_cell.direction.y as i32)
+                                                * index as i32),
+                                    ),
+                                    Vector2D::new(last_cell.direction.x, last_cell.direction.y),
+                                )
+                            })
+                            .collect::<Vec<SnakeCell>>(),
+                    );
+                }
             }
         }
 
@@ -252,15 +206,25 @@ fn main() {
         // then render ..
 
         // draw egg
-        canvas.set_draw_color(Color::YELLOW);
-        canvas
-            .fill_rect(Rect::new(
-                egg_rect.x + 5,
-                egg_rect.y + 5,
-                egg_rect.w as u32 - 10,
-                egg_rect.h as u32 - 10,
-            ))
-            .unwrap();
+        for egg in eggs.iter() {
+            match egg.class {
+                CollectibleType::Egg { special } => {
+                    let egg_rect = egg.rect();
+                    let shrink_factor = if special { 0 } else { 6 };
+
+                    canvas.set_draw_color(if special { Color::YELLOW } else { Color::CYAN });
+                    canvas
+                        .fill_rect(Rect::new(
+                            egg_rect.x + shrink_factor,
+                            egg_rect.y + shrink_factor,
+                            egg_rect.w as u32 - (shrink_factor as u32 * 2u32),
+                            egg_rect.h as u32 - (shrink_factor as u32 * 2u32),
+                        ))
+                        .unwrap();
+                }
+                CollectibleType::Virus => unreachable!(),
+            }
+        }
 
         // draw all cells at thier position
         let len = snake.len();
