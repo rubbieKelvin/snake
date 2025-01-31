@@ -5,12 +5,11 @@ use sdl2::{
     keyboard::Keycode,
     pixels::Color,
     rect::{Point, Rect},
-    sys::Time,
 };
 
 use constants::*;
 use objs::{Collectible, CollectibleType, SnakeCell, Timer, Vector2D};
-use utils::random_position_on_screen;
+use utils::{random_position_on_screen, render_text};
 
 mod constants;
 mod objs;
@@ -28,11 +27,16 @@ fn main() {
     snake_flash_timer.pause();
 
     let sdl_context = sdl2::init().unwrap();
+    let ttf_context = sdl2::ttf::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
     let window = video_subsystem
         .window("Snake game", WINDOW_W, WINDOW_H)
         .position_centered()
         .build()
+        .unwrap();
+
+    let pixelify_font_28 = ttf_context
+        .load_font("assets/fonts/pixelify.ttf", 28)
         .unwrap();
 
     let mut canvas = window.into_canvas().build().unwrap();
@@ -63,7 +67,7 @@ fn main() {
         let start_time = Instant::now();
 
         // clear the canvas with the clear color
-        canvas.set_draw_color(Color::GREEN);
+        canvas.set_draw_color(Color::RGB(30, 255, 50));
         canvas.clear();
 
         // check through the event poll
@@ -295,6 +299,16 @@ fn main() {
                 canvas.draw_rect(rect).unwrap();
             }
         }
+
+        // render score
+        render_text(
+            score.to_string().as_str(),
+            Point::new(20, 20),
+            &pixelify_font_28,
+            &mut canvas,
+            Color::BLACK,
+        )
+        .unwrap();
 
         // present the buffer on the window
         canvas.present();
