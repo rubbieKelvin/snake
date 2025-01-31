@@ -5,6 +5,7 @@ use sdl2::{
     keyboard::Keycode,
     pixels::Color,
     rect::{Point, Rect},
+    sys::Time,
 };
 
 use constants::*;
@@ -19,9 +20,12 @@ fn main() {
     #[allow(unused_variables)]
     let mut timer: f64 = 0.0;
     let mut score: u16 = 0;
+    let mut snake_flash_count: u8 = 0; // when flashing we'd flash on every odd number, and reduce by one until zero
 
     let mut snake_cell_movement_timer = Timer::new(0.18);
     let mut egg_in_snake_body_timer = Timer::new(0.025);
+    let mut snake_flash_timer = Timer::new(0.3);
+    snake_flash_timer.pause();
 
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
@@ -59,7 +63,7 @@ fn main() {
         let start_time = Instant::now();
 
         // clear the canvas with the clear color
-        canvas.set_draw_color(Color::BLACK);
+        canvas.set_draw_color(Color::GREEN);
         canvas.clear();
 
         // check through the event poll
@@ -72,12 +76,47 @@ fn main() {
                     keycode: Some(code),
                     ..
                 } => {
+                    let cell_count = snake.len();
                     let cell = &mut snake[0];
                     match code {
-                        Keycode::A | Keycode::LEFT => cell.direction = Vector2D::new(-1f32, 0f32),
-                        Keycode::W | Keycode::UP => cell.direction = Vector2D::new(0f32, -1f32),
-                        Keycode::D | Keycode::RIGHT => cell.direction = Vector2D::new(1f32, 0f32),
-                        Keycode::S | Keycode::DOWN => cell.direction = Vector2D::new(0f32, 1f32),
+                        Keycode::A | Keycode::LEFT => {
+                            if cell_count > 1 && cell.direction.x == 1f32 {
+                                // cannot co left if it's going right (this prevents it from directly turning on it's self)
+                                // flash snake cells or show some kinda warning
+                                snake_flash_count = MAX_SNAKE_FLASH_COUNT;
+                                snake_flash_timer.play();
+                            } else {
+                                cell.direction = Vector2D::new(-1f32, 0f32);
+                            }
+                        }
+                        Keycode::W | Keycode::UP => {
+                            if cell_count > 1 && cell.direction.y == 1f32 {
+                                // cannot co left if it's going right (this prevents it from directly turning on it's self)
+                                // flash snake cells or show some kinda warning
+                                snake_flash_count = MAX_SNAKE_FLASH_COUNT;
+                                snake_flash_timer.play();
+                            } else {
+                                cell.direction = Vector2D::new(0f32, -1f32);
+                            }
+                        }
+                        Keycode::D | Keycode::RIGHT => {
+                            if cell_count > 1 && cell.direction.x == -1f32 {
+                                snake_flash_count = MAX_SNAKE_FLASH_COUNT;
+                                snake_flash_timer.play();
+                            } else {
+                                cell.direction = Vector2D::new(1f32, 0f32);
+                            }
+                        }
+                        Keycode::S | Keycode::DOWN => {
+                            if cell_count > 1 && cell.direction.y == -1f32 {
+                                // cannot co left if it's going right (this prevents it from directly turning on it's self)
+                                // flash snake cells or show some kinda warning
+                                snake_flash_count = MAX_SNAKE_FLASH_COUNT;
+                                snake_flash_timer.play();
+                            } else {
+                                cell.direction = Vector2D::new(0f32, 1f32);
+                            }
+                        }
                         _ => {}
                     }
                 }
@@ -203,6 +242,13 @@ fn main() {
             }
         }
 
+        if snake_flash_timer.triggered() {
+            snake_flash_count -= 1;
+            if snake_flash_count == 0 {
+                snake_flash_timer.stop();
+            }
+        }
+
         // then render ..
 
         // draw egg
@@ -212,15 +258,16 @@ fn main() {
                     let egg_rect = egg.rect();
                     let shrink_factor = if special { 0 } else { 6 };
 
+                    let visual_rect = Rect::new(
+                        egg_rect.x + shrink_factor,
+                        egg_rect.y + shrink_factor,
+                        egg_rect.w as u32 - (shrink_factor as u32 * 2u32),
+                        egg_rect.h as u32 - (shrink_factor as u32 * 2u32),
+                    );
                     canvas.set_draw_color(if special { Color::YELLOW } else { Color::CYAN });
-                    canvas
-                        .fill_rect(Rect::new(
-                            egg_rect.x + shrink_factor,
-                            egg_rect.y + shrink_factor,
-                            egg_rect.w as u32 - (shrink_factor as u32 * 2u32),
-                            egg_rect.h as u32 - (shrink_factor as u32 * 2u32),
-                        ))
-                        .unwrap();
+                    canvas.fill_rect(visual_rect).unwrap();
+                    canvas.set_draw_color(Color::RGB(20, 20, 20));
+                    canvas.draw_rect(visual_rect).unwrap();
                 }
                 CollectibleType::Virus => unreachable!(),
             }
@@ -241,17 +288,24 @@ fn main() {
 
             canvas.set_draw_color(color);
             canvas.fill_rect(rect).unwrap();
+
+            // if we're flashing on an odd number, draw boarder
+            if snake_flash_count % 2 == 1 {
+                canvas.set_draw_color(Color::BLACK);
+                canvas.draw_rect(rect).unwrap();
+            }
         }
 
         // present the buffer on the window
         canvas.present();
 
         // time gone and shi
-        let time_gone = Instant::now().duration_since(start_time).as_secs_f64();
-        timer += time_gone;
+        let delta = Instant::now().duration_since(start_time).as_secs_f64();
+        timer += delta;
 
         // tick clocks
-        snake_cell_movement_timer.tick(time_gone);
-        egg_in_snake_body_timer.tick(time_gone);
+        snake_cell_movement_timer.tick(delta);
+        egg_in_snake_body_timer.tick(delta);
+        snake_flash_timer.tick(delta);
     }
 }

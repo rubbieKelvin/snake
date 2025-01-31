@@ -87,6 +87,19 @@ impl Timer {
         return false;
     }
 
+    pub fn pause(&mut self) {
+        self.running = false;
+    }
+
+    pub fn stop(&mut self) {
+        self.counter = 0.0;
+        self.pause();
+    }
+
+    pub fn play(&mut self) {
+        self.running = true;
+    }
+
     pub fn tick(&mut self, delta: f64) {
         if self.running {
             self.counter += delta;
