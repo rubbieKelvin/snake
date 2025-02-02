@@ -20,10 +20,13 @@ fn main() {
     let mut timer: f64 = 0.0;
     let mut score: u16 = 0;
     let mut snake_flash_count: u8 = 0; // when flashing we'd flash on every odd number, and reduce by one until zero
+    let mut paused = false;
+    let mut game_over = false;
 
     let mut snake_cell_movement_timer = Timer::new(0.18);
     let mut egg_in_snake_body_timer = Timer::new(0.025);
     let mut snake_flash_timer = Timer::new(0.3);
+
     snake_flash_timer.pause();
 
     let sdl_context = sdl2::init().unwrap();
@@ -84,42 +87,53 @@ fn main() {
                     let cell = &mut snake[0];
                     match code {
                         Keycode::A | Keycode::LEFT => {
-                            if cell_count > 1 && cell.direction.x == 1f32 {
-                                // cannot co left if it's going right (this prevents it from directly turning on it's self)
-                                // flash snake cells or show some kinda warning
-                                snake_flash_count = MAX_SNAKE_FLASH_COUNT;
-                                snake_flash_timer.play();
-                            } else {
-                                cell.direction = Vector2D::new(-1f32, 0f32);
+                            if !paused {
+                                if cell_count > 1 && cell.direction.x == 1f32 {
+                                    // cannot co left if it's going right (this prevents it from directly turning on it's self)
+                                    // flash snake cells or show some kinda warning
+                                    snake_flash_count = MAX_SNAKE_FLASH_COUNT;
+                                    snake_flash_timer.play();
+                                } else {
+                                    cell.direction = Vector2D::new(-1f32, 0f32);
+                                }
                             }
                         }
                         Keycode::W | Keycode::UP => {
-                            if cell_count > 1 && cell.direction.y == 1f32 {
-                                // cannot co left if it's going right (this prevents it from directly turning on it's self)
-                                // flash snake cells or show some kinda warning
-                                snake_flash_count = MAX_SNAKE_FLASH_COUNT;
-                                snake_flash_timer.play();
-                            } else {
-                                cell.direction = Vector2D::new(0f32, -1f32);
+                            if !paused {
+                                if cell_count > 1 && cell.direction.y == 1f32 {
+                                    // cannot co left if it's going right (this prevents it from directly turning on it's self)
+                                    // flash snake cells or show some kinda warning
+                                    snake_flash_count = MAX_SNAKE_FLASH_COUNT;
+                                    snake_flash_timer.play();
+                                } else {
+                                    cell.direction = Vector2D::new(0f32, -1f32);
+                                }
                             }
                         }
                         Keycode::D | Keycode::RIGHT => {
-                            if cell_count > 1 && cell.direction.x == -1f32 {
-                                snake_flash_count = MAX_SNAKE_FLASH_COUNT;
-                                snake_flash_timer.play();
-                            } else {
-                                cell.direction = Vector2D::new(1f32, 0f32);
+                            if !paused {
+                                if cell_count > 1 && cell.direction.x == -1f32 {
+                                    snake_flash_count = MAX_SNAKE_FLASH_COUNT;
+                                    snake_flash_timer.play();
+                                } else {
+                                    cell.direction = Vector2D::new(1f32, 0f32);
+                                }
                             }
                         }
                         Keycode::S | Keycode::DOWN => {
-                            if cell_count > 1 && cell.direction.y == -1f32 {
-                                // cannot co left if it's going right (this prevents it from directly turning on it's self)
-                                // flash snake cells or show some kinda warning
-                                snake_flash_count = MAX_SNAKE_FLASH_COUNT;
-                                snake_flash_timer.play();
-                            } else {
-                                cell.direction = Vector2D::new(0f32, 1f32);
+                            if !paused {
+                                if cell_count > 1 && cell.direction.y == -1f32 {
+                                    // cannot co left if it's going right (this prevents it from directly turning on it's self)
+                                    // flash snake cells or show some kinda warning
+                                    snake_flash_count = MAX_SNAKE_FLASH_COUNT;
+                                    snake_flash_timer.play();
+                                } else {
+                                    cell.direction = Vector2D::new(0f32, 1f32);
+                                }
                             }
+                        }
+                        Keycode::P => {
+                            paused = !paused;
                         }
                         _ => {}
                     }
@@ -129,6 +143,14 @@ fn main() {
         }
 
         // process data here...
+        if paused && snake_cell_movement_timer.running {
+            snake_cell_movement_timer.pause();
+        }
+
+        if !paused && !snake_cell_movement_timer.running {
+            snake_cell_movement_timer.play();
+        }
+
         // see if we ate the egg
         {
             for egg in eggs.iter_mut() {
@@ -157,7 +179,6 @@ fn main() {
                     // add cell to snake
                     let last_cell = &snake[snake.len() - 1];
 
-                    // TODO: there's a bug here
                     // add a new cell to the snake at about the amount the user scored
                     snake.append(
                         &mut (0..credit)
@@ -179,6 +200,22 @@ fn main() {
                             })
                             .collect::<Vec<SnakeCell>>(),
                     );
+                }
+            }
+        }
+
+        // check if we collided into our body
+        if snake.len() > 4 && !game_over {
+            let (head_cells, body_cells) = snake.split_at(4);
+            let head = &head_cells[0];
+
+            for cell in body_cells {
+                if head.position.x == cell.position.x && head.position.y == cell.position.y {
+                    paused = true;
+                    game_over = true;
+                    snake_flash_count = (MAX_SNAKE_FLASH_COUNT*2)+1;
+                    snake_flash_timer.play();
+                    break;
                 }
             }
         }

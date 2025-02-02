@@ -2,6 +2,7 @@ use crate::constants::*;
 use crate::utils::rect_from_point;
 use sdl2::rect::{Point, Rect};
 
+#[derive(Debug)]
 pub struct Vector2D {
     pub x: f32,
     pub y: f32,
@@ -22,6 +23,7 @@ impl Vector2D {
     }
 }
 
+#[derive(Debug)]
 pub struct SnakeCell {
     pub position: Point,
     pub direction: Vector2D,
@@ -65,7 +67,7 @@ pub enum CollectibleType {
 }
 
 pub struct Timer {
-    running: bool,
+    pub running: bool,
     interval: f64,
     counter: f64,
 }
