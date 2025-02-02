@@ -51,20 +51,6 @@ To run this game, you need:
 - Press `P` to pause or resume the game.
 - The game ends when the snake collides with itself.
 
-## File Structure
-```
-├── src
-│   ├── constants.rs       # Game constants
-│   ├── objs.rs            # Object definitions (SnakeCell, Collectibles, etc.)
-│   ├── utils.rs           # Utility functions
-│   ├── main.rs            # Game logic and event handling
-├── assets
-│   ├── fonts
-│       ├── pixelify.ttf   # Font used for score rendering
-├── Cargo.toml             # Rust dependencies
-├── README.md              # Project documentation
-```
-
 ## Dependencies
 The game uses the following Rust crates:
 - `sdl2` for graphics, events, and rendering
