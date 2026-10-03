@@ -1,6 +1,9 @@
 # Snake Game in Rust (SDL2)
 
 ## Overview
+
+![screenshot](./assets/screenshot.gif)
+
 Snake game implemented in [Rust](https://www.rust-lang.org/learn/get-started) using the [SDL2](https://wiki.libsdl.org/SDL2/FrontPage) library. Collect eggs to grow longer while avoiding self-collision. The game supports teleporting at screen edges, and visual feedback when attempting illegal moves.
 
 ## Features
@@ -65,5 +68,3 @@ The game uses the following Rust crates:
 
 ## License
 This project is licensed under the MIT License.
-
-
