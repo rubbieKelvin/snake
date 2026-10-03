@@ -438,10 +438,24 @@ fn draw_menu(canvas: &mut WindowCanvas, game: &Game, fonts: &Fonts) {
         text_center(
             canvas,
             &fonts.normal,
-            "Press ENTER to start",
+            if game.save_summary().is_some() {
+                "ENTER: new game"
+            } else {
+                "Press ENTER to start"
+            },
             cx,
             140,
             Color::YELLOW,
+        );
+    }
+    if let Some((score, level)) = game.save_summary() {
+        text_center(
+            canvas,
+            &fonts.normal,
+            &format!("C: continue   (score {}, level {})", score, level),
+            cx,
+            172,
+            Color::WHITE,
         );
     }
 

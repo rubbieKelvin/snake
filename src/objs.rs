@@ -1,8 +1,9 @@
 use crate::constants::*;
 use sdl2::pixels::Color;
+use serde::{Deserialize, Serialize};
 use sdl2::rect::Point;
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub enum Direction {
     Up,
     Down,
@@ -85,7 +86,7 @@ pub fn wrapped_dist(grid: Grid, a: Point, b: Point) -> i32 {
     return dx.min(grid.cols - dx) + dy.min(grid.rows - dy);
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PowerKind {
     Shield,
     Ghost,
@@ -138,6 +139,7 @@ impl PowerKind {
     }
 }
 
+#[derive(Clone, Serialize, Deserialize)]
 pub enum CollectibleType {
     Egg { special: bool },
     Virus,

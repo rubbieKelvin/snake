@@ -69,6 +69,11 @@ fn main() {
                     Keycode::W | Keycode::Up => game.turn(Direction::Up),
                     Keycode::S | Keycode::Down => game.turn(Direction::Down),
                     Keycode::P => game.toggle_pause(),
+                    Keycode::C => {
+                        if game.state == GameState::Menu {
+                            game.continue_game();
+                        }
+                    }
                     Keycode::M => {
                         if let Some(audio) = audio.as_mut() {
                             audio.muted = !audio.muted;
@@ -113,4 +118,7 @@ fn main() {
             std::thread::sleep(Duration::from_millis(8));
         }
     }
+
+    // quitting mid-round keeps it, so it can be continued next time
+    game.save_to_disk();
 }

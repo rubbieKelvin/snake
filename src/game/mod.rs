@@ -9,8 +9,12 @@ use crate::constants::*;
 use crate::enemy::Enemy;
 use crate::objs::*;
 
+pub mod save;
+
 pub struct Game {
     pub grid: Grid,
+    /// a round saved by a previous run that the player can continue
+    saved: Option<save::SaveData>,
     pub state: GameState,
     pub snake: VecDeque<Point>,
     pub dir: Direction,
@@ -60,6 +64,7 @@ impl Game {
     pub fn new(grid: Grid) -> Self {
         let mut game = Game {
             grid,
+            saved: save::load_from_disk(grid),
             state: GameState::Menu,
             snake: VecDeque::new(),
             dir: Direction::Right,
@@ -144,6 +149,9 @@ impl Game {
             return;
         }
         self.reset();
+        // starting fresh discards the old save
+        self.saved = None;
+        save::delete_save();
         self.state = GameState::Playing;
         self.sfx(Sfx::Start);
     }
@@ -364,7 +372,11 @@ impl Game {
                 CollectibleType::Egg { special: true } => 3,
                 _ => 1,
             };
-            self.sfx(if credit == 3 { Sfx::EatGolden } else { Sfx::Eat });
+            self.sfx(if credit == 3 {
+                Sfx::EatGolden
+            } else {
+                Sfx::Eat
+            });
             self.pending_growth += credit as usize;
             self.boost_meter = (self.boost_meter + BOOST_EGG_BONUS).min(1.0);
             self.respawn_egg(i);
@@ -470,7 +482,11 @@ impl Game {
             self.sfx(Sfx::LevelUp);
             self.spawn_viruses();
             self.spawn_hearts();
-            self.popup(offset(self.grid, at, 0, -2), &format!("LEVEL {}", level), Color::WHITE);
+            self.popup(
+                offset(self.grid, at, 0, -2),
+                &format!("LEVEL {}", level),
+                Color::WHITE,
+            );
             // a second egg to chase every few levels
             if self.level % 3 == 0 && self.eggs.len() < 3 {
                 let pos = self.free_cell(0);
@@ -487,6 +503,8 @@ impl Game {
         self.sfx(Sfx::GameOver);
         self.over_age = 0.0;
         self.boosting = false;
+        // a finished round can't be continued
+        save::delete_save();
         if self.score > self.high_score {
             self.high_score = self.score;
             self.new_high_score = true;
@@ -500,8 +518,10 @@ impl Game {
         let head = self.snake[0];
         for _ in 0..80 {
             let dir = Direction::ALL[rand::random_range(0..4)];
-            let start = Point::new(rand::random_range(0..self.grid.cols),
-                rand::random_range(0..self.grid.rows));
+            let start = Point::new(
+                rand::random_range(0..self.grid.cols),
+                rand::random_range(0..self.grid.rows),
+            );
             if wrapped_dist(self.grid, start, head) < 20 {
                 continue;
             }
@@ -659,8 +679,10 @@ impl Game {
     fn free_cell(&self, head_margin: i32) -> Point {
         let head = self.snake[0];
         loop {
-            let p = Point::new(rand::random_range(0..self.grid.cols),
-                rand::random_range(0..self.grid.rows));
+            let p = Point::new(
+                rand::random_range(0..self.grid.cols),
+                rand::random_range(0..self.grid.rows),
+            );
             if wrapped_dist(self.grid, p, head) > head_margin && !self.occupied(p) {
                 return p;
             }
