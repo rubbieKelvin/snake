@@ -1,34 +1,38 @@
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use sdl2::{
     event::Event,
     keyboard::Keycode,
     pixels::Color,
     rect::{Point, Rect},
+    render::WindowCanvas,
+    ttf::Font,
 };
 
 use constants::*;
-use objs::{Collectible, CollectibleType, SnakeCell, Timer, Vector2D};
-use utils::{random_position_on_screen, render_text};
+use game::Game;
+use objs::{CollectibleType, Direction, GameState};
+use utils::{render_text, render_text_centered};
 
 mod constants;
+mod game;
 mod objs;
 mod utils;
 
+fn cell_rect(p: Point) -> Rect {
+    return Rect::new(p.x * CELL as i32, p.y * CELL as i32, CELL, CELL);
+}
+
+fn inset(r: Rect, by: i32) -> Rect {
+    return Rect::new(
+        r.x + by,
+        r.y + by,
+        r.w as u32 - 2 * by as u32,
+        r.h as u32 - 2 * by as u32,
+    );
+}
+
 fn main() {
-    #[allow(unused_variables)]
-    let mut timer: f64 = 0.0;
-    let mut score: u16 = 0;
-    let mut snake_flash_count: u8 = 0; // when flashing we'd flash on every odd number, and reduce by one until zero
-    let mut paused = false;
-    let mut game_over = false;
-
-    let mut snake_cell_movement_timer = Timer::new(0.18);
-    let mut egg_in_snake_body_timer = Timer::new(0.025);
-    let mut snake_flash_timer = Timer::new(0.3);
-
-    snake_flash_timer.pause();
-
     let sdl_context = sdl2::init().unwrap();
     let ttf_context = sdl2::ttf::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
@@ -38,325 +42,268 @@ fn main() {
         .build()
         .unwrap();
 
-    let pixelify_font_28 = ttf_context
+    let font_small = ttf_context
+        .load_font("assets/fonts/pixelify.ttf", 22)
+        .unwrap();
+    let font = ttf_context
         .load_font("assets/fonts/pixelify.ttf", 28)
         .unwrap();
+    let font_big = ttf_context
+        .load_font("assets/fonts/pixelify.ttf", 72)
+        .unwrap();
 
-    let mut canvas = window.into_canvas().build().unwrap();
+    let mut canvas = window.into_canvas().present_vsync().build().unwrap();
     let mut event_pump = sdl_context.event_pump().unwrap();
 
-    // create a vector of snake cells at a randomly specified location
-    let mut snake: Vec<SnakeCell> = vec![
-        SnakeCell::new(Point::new(0, 0), Vector2D::new(1f32, 0f32)),
-        SnakeCell::new(Point::new(0, 0), Vector2D::new(1f32, 0f32)),
-    ];
-
-    // egg
-    let mut eggs: Vec<Collectible> = vec![Collectible {
-        position: random_position_on_screen(),
-        class: CollectibleType::Egg { special: false },
-    }];
-
-    let mut viruses = (1..10)
-        .map(|_| Collectible {
-            position: random_position_on_screen(),
-            class: CollectibleType::Virus,
-        })
-        .collect::<Vec<Collectible>>();
-
-    // let bounding_rect = Rect::new(0, 0, WINDOW_W, WINDOW_H);
+    let mut game = Game::new();
+    let mut last_frame = Instant::now();
 
     'running: loop {
-        let start_time = Instant::now();
-
-        // clear the canvas with the clear color
-        canvas.set_draw_color(Color::RGB(30, 255, 50));
-        canvas.clear();
-
-        // check through the event poll
         for event in event_pump.poll_iter() {
             match event {
-                Event::Quit { .. } => {
-                    break 'running;
-                }
+                Event::Quit { .. } => break 'running,
                 Event::KeyDown {
                     keycode: Some(code),
+                    repeat: false,
                     ..
-                } => {
-                    let cell_count = snake.len();
-                    let cell = &mut snake[0];
-                    match code {
-                        Keycode::A | Keycode::LEFT => {
-                            if !paused {
-                                if cell_count > 1 && cell.direction.x == 1f32 {
-                                    // cannot co left if it's going right (this prevents it from directly turning on it's self)
-                                    // flash snake cells or show some kinda warning
-                                    snake_flash_count = MAX_SNAKE_FLASH_COUNT;
-                                    snake_flash_timer.play();
-                                } else {
-                                    cell.direction = Vector2D::new(-1f32, 0f32);
-                                }
-                            }
-                        }
-                        Keycode::W | Keycode::UP => {
-                            if !paused {
-                                if cell_count > 1 && cell.direction.y == 1f32 {
-                                    // cannot co left if it's going right (this prevents it from directly turning on it's self)
-                                    // flash snake cells or show some kinda warning
-                                    snake_flash_count = MAX_SNAKE_FLASH_COUNT;
-                                    snake_flash_timer.play();
-                                } else {
-                                    cell.direction = Vector2D::new(0f32, -1f32);
-                                }
-                            }
-                        }
-                        Keycode::D | Keycode::RIGHT => {
-                            if !paused {
-                                if cell_count > 1 && cell.direction.x == -1f32 {
-                                    snake_flash_count = MAX_SNAKE_FLASH_COUNT;
-                                    snake_flash_timer.play();
-                                } else {
-                                    cell.direction = Vector2D::new(1f32, 0f32);
-                                }
-                            }
-                        }
-                        Keycode::S | Keycode::DOWN => {
-                            if !paused {
-                                if cell_count > 1 && cell.direction.y == -1f32 {
-                                    // cannot co left if it's going right (this prevents it from directly turning on it's self)
-                                    // flash snake cells or show some kinda warning
-                                    snake_flash_count = MAX_SNAKE_FLASH_COUNT;
-                                    snake_flash_timer.play();
-                                } else {
-                                    cell.direction = Vector2D::new(0f32, 1f32);
-                                }
-                            }
-                        }
-                        Keycode::P => {
-                            paused = !paused;
-                        }
-                        _ => {}
-                    }
-                }
+                } => match code {
+                    Keycode::Escape => break 'running,
+                    Keycode::A | Keycode::Left => game.turn(Direction::Left),
+                    Keycode::D | Keycode::Right => game.turn(Direction::Right),
+                    Keycode::W | Keycode::Up => game.turn(Direction::Up),
+                    Keycode::S | Keycode::Down => game.turn(Direction::Down),
+                    Keycode::P => game.toggle_pause(),
+                    Keycode::Return | Keycode::Space => match game.state {
+                        GameState::Menu | GameState::GameOver => game.start(),
+                        GameState::Paused => game.toggle_pause(),
+                        GameState::Playing => {}
+                    },
+                    _ => {}
+                },
                 _ => {}
             }
         }
 
-        // process data here...
-        if paused && snake_cell_movement_timer.running {
-            snake_cell_movement_timer.pause();
-        }
+        let now = Instant::now();
+        // clamp so a window drag or hiccup doesn't make the snake lurch
+        let delta = now.duration_since(last_frame).as_secs_f64().min(0.1);
+        last_frame = now;
+        game.update(delta);
 
-        if !paused && !snake_cell_movement_timer.running {
-            snake_cell_movement_timer.play();
-        }
-
-        // see if we ate the egg
-        {
-            for egg in eggs.iter_mut() {
-                let first_cell = &mut snake[0];
-
-                let egg_rect = egg.rect();
-
-                if first_cell.position.x == egg_rect.x && first_cell.position.y == egg_rect.y {
-                    first_cell.just_swallowed_egg = true;
-
-                    // increase score
-                    let credit = if let CollectibleType::Egg { special: true } = egg.class {
-                        3
-                    } else {
-                        1
-                    };
-
-                    score += credit;
-
-                    // draw egg at another position
-                    egg.position = random_position_on_screen();
-                    egg.class = CollectibleType::Egg {
-                        special: rand::random_bool(0.3),
-                    };
-
-                    // add cell to snake
-                    let last_cell = &snake[snake.len() - 1];
-
-                    // add a new cell to the snake at about the amount the user scored
-                    snake.append(
-                        &mut (0..credit)
-                            .map(|i| {
-                                // range is from 0 -> credit, so add one,
-                                let index = i + 1;
-
-                                SnakeCell::new(
-                                    Point::new(
-                                        last_cell.position.x
-                                            - ((SNAKE_W as i32 * last_cell.direction.x as i32)
-                                                * index as i32),
-                                        last_cell.position.y
-                                            - ((SNAKE_H as i32 * last_cell.direction.y as i32)
-                                                * index as i32),
-                                    ),
-                                    Vector2D::new(last_cell.direction.x, last_cell.direction.y),
-                                )
-                            })
-                            .collect::<Vec<SnakeCell>>(),
-                    );
-                }
-            }
-        }
-
-        // check if we collided into our body
-        if snake.len() > 4 && !game_over {
-            let (head_cells, body_cells) = snake.split_at(4);
-            let head = &head_cells[0];
-
-            for cell in body_cells {
-                if head.position.x == cell.position.x && head.position.y == cell.position.y {
-                    paused = true;
-                    game_over = true;
-                    snake_flash_count = (MAX_SNAKE_FLASH_COUNT*2)+1;
-                    snake_flash_timer.play();
-                    break;
-                }
-            }
-        }
-
-        // process cell movement
-        if snake_cell_movement_timer.triggered() {
-            // move each cells direction to the one behind it
-            // create a copy of the snake
-            let snake_clone = snake
-                .iter()
-                .map(|cell| cell.copy())
-                .collect::<Vec<SnakeCell>>();
-
-            // set direction for cells
-            for (index, cell) in snake.iter_mut().enumerate().rev() {
-                // since we're iterating in reverse..
-                if index == 0 {
-                    break;
-                };
-
-                if let Some(copied_cell) = snake_clone.get(index - 1) {
-                    cell.direction = copied_cell.direction.copy();
-                }
-            }
-
-            // every time we get this tirgger,
-            // move every cell's position by thier direction
-            for cell in &mut snake {
-                let mut new_x = cell.position.x + (cell.direction.x as i32 * SNAKE_W as i32);
-                let mut new_y = cell.position.y + (cell.direction.y as i32 * SNAKE_H as i32);
-
-                // allow teleporting on window border
-                if new_x >= WINDOW_W as i32 {
-                    new_x = 0;
-                };
-                if new_x < 0 {
-                    new_x = WINDOW_W as i32;
-                };
-
-                if new_y >= WINDOW_H as i32 {
-                    new_y = 0;
-                }
-                if new_y < 0 {
-                    new_y = WINDOW_H as i32;
-                }
-
-                cell.position = Point::new(new_x, new_y);
-            }
-        }
-
-        if egg_in_snake_body_timer.triggered() {
-            // paint where the egg is at in the snakes body
-            let mut holding_egg = false;
-            for cell in snake.iter_mut() {
-                if cell.just_swallowed_egg {
-                    cell.just_swallowed_egg = false;
-                    holding_egg = true;
-                    continue;
-                }
-
-                if holding_egg {
-                    cell.just_swallowed_egg = true;
-                    holding_egg = false;
-                }
-            }
-        }
-
-        if snake_flash_timer.triggered() {
-            snake_flash_count -= 1;
-            if snake_flash_count == 0 {
-                snake_flash_timer.stop();
-            }
-        }
-
-        // then render ..
-
-        // draw egg
-        for egg in eggs.iter() {
-            match egg.class {
-                CollectibleType::Egg { special } => {
-                    let egg_rect = egg.rect();
-                    let shrink_factor = if special { 0 } else { 6 };
-
-                    let visual_rect = Rect::new(
-                        egg_rect.x + shrink_factor,
-                        egg_rect.y + shrink_factor,
-                        egg_rect.w as u32 - (shrink_factor as u32 * 2u32),
-                        egg_rect.h as u32 - (shrink_factor as u32 * 2u32),
-                    );
-                    canvas.set_draw_color(if special { Color::YELLOW } else { Color::CYAN });
-                    canvas.fill_rect(visual_rect).unwrap();
-                    canvas.set_draw_color(Color::RGB(20, 20, 20));
-                    canvas.draw_rect(visual_rect).unwrap();
-                }
-                CollectibleType::Virus => unreachable!(),
-            }
-        }
-
-        // draw all cells at thier position
-        let len = snake.len();
-        for (index, cell) in snake.iter().enumerate() {
-            let rect = Rect::new(cell.position.x, cell.position.y, SNAKE_W, SNAKE_H);
-
-            let color = if cell.just_swallowed_egg {
-                Color::CYAN
-            } else {
-                let ratio = (index as f32 + 1f32) / (len as f32);
-                let iratio = ((len - index) as f32 + 1f32) / (len as f32);
-                Color::RGB((255f32 * ratio) as u8, 100, (160f32 * iratio) as u8)
-            };
-
-            canvas.set_draw_color(color);
-            canvas.fill_rect(rect).unwrap();
-
-            // if we're flashing on an odd number, draw boarder
-            if snake_flash_count % 2 == 1 {
-                canvas.set_draw_color(Color::BLACK);
-                canvas.draw_rect(rect).unwrap();
-            }
-        }
-
-        // render score
-        render_text(
-            score.to_string().as_str(),
-            Point::new(20, 20),
-            &pixelify_font_28,
-            &mut canvas,
-            Color::BLACK,
-        )
-        .unwrap();
-
-        // present the buffer on the window
+        render(&mut canvas, &game, &font_small, &font, &font_big);
         canvas.present();
 
-        // time gone and shi
-        let delta = Instant::now().duration_since(start_time).as_secs_f64();
-        timer += delta;
+        // vsync normally paces us; this covers drivers where it's unavailable
+        if now.elapsed() < Duration::from_millis(2) {
+            std::thread::sleep(Duration::from_millis(8));
+        }
+    }
+}
 
-        // tick clocks
-        snake_cell_movement_timer.tick(delta);
-        egg_in_snake_body_timer.tick(delta);
-        snake_flash_timer.tick(delta);
+fn render(canvas: &mut WindowCanvas, game: &Game, font_small: &Font, font: &Font, font_big: &Font) {
+    // checkerboard background
+    for y in 0..ROWS {
+        for x in 0..COLS {
+            canvas.set_draw_color(if (x + y) % 2 == 0 {
+                Color::RGB(30, 220, 60)
+            } else {
+                Color::RGB(40, 235, 75)
+            });
+            canvas.fill_rect(cell_rect(Point::new(x, y))).unwrap();
+        }
+    }
+
+    for egg in &game.eggs {
+        if let CollectibleType::Egg { special } = egg.class {
+            let rect = cell_rect(egg.position);
+            // special eggs blink while about to expire
+            let urgent = special && egg.age > SPECIAL_EGG_LIFETIME - 2.0;
+            if urgent && (egg.age * 6.0) as i32 % 2 == 0 {
+                continue;
+            }
+            let visual = if special { rect } else { inset(rect, 6) };
+            canvas.set_draw_color(if special { Color::YELLOW } else { Color::CYAN });
+            canvas.fill_rect(visual).unwrap();
+            canvas.set_draw_color(Color::RGB(20, 20, 20));
+            canvas.draw_rect(visual).unwrap();
+        }
+    }
+
+    for virus in &game.viruses {
+        let rect = cell_rect(virus.position);
+        canvas.set_draw_color(Color::RGB(150, 0, 170));
+        canvas.fill_rect(inset(rect, 3)).unwrap();
+        canvas.set_draw_color(Color::RGB(230, 60, 90));
+        canvas.fill_rect(inset(rect, 7)).unwrap();
+        canvas.set_draw_color(Color::RGB(20, 20, 20));
+        canvas.draw_rect(inset(rect, 3)).unwrap();
+    }
+
+    // snake
+    let len = game.snake.len();
+    let hurt_flash = game.damage_flash > 0.0 && (game.damage_flash * 10.0) as i32 % 2 == 0;
+    let dead = game.state == GameState::GameOver;
+    for (index, cell) in game.snake.iter().enumerate() {
+        let rect = cell_rect(*cell);
+        let ratio = (index as f32 + 1.0) / len as f32;
+        let iratio = ((len - index) as f32 + 1.0) / len as f32;
+        let color = if hurt_flash {
+            Color::WHITE
+        } else if dead {
+            Color::RGB(110, 110, 110)
+        } else {
+            Color::RGB(
+                (255.0 * ratio) as u8,
+                100,
+                (160.0 * iratio).min(255.0) as u8,
+            )
+        };
+        canvas.set_draw_color(color);
+        canvas.fill_rect(rect).unwrap();
+    }
+
+    // eyes on the head
+    if let Some(head) = game.snake.front() {
+        let r = cell_rect(*head);
+        let (dx, dy) = game.dir.delta();
+        // two eyes offset perpendicular to the heading, pushed forward a bit
+        let (px, py) = (dy.abs(), dx.abs());
+        for side in [-1, 1] {
+            let ex = r.x + 8 + dx * 4 + px * side * 5;
+            let ey = r.y + 8 + dy * 4 + py * side * 5;
+            canvas.set_draw_color(Color::WHITE);
+            canvas.fill_rect(Rect::new(ex, ey, 4, 4)).unwrap();
+        }
+    }
+
+    // HUD
+    let ink = Color::RGB(15, 40, 20);
+    render_text(
+        &format!("Score {}", game.score),
+        Point::new(20, 14),
+        font,
+        canvas,
+        ink,
+    )
+    .unwrap();
+    render_text(
+        &format!("Level {}   Best {}", game.level, game.high_score),
+        Point::new(20, 50),
+        font_small,
+        canvas,
+        ink,
+    )
+    .unwrap();
+    for i in 0..game.lives as i32 {
+        canvas.set_draw_color(Color::RGB(230, 40, 70));
+        canvas
+            .fill_rect(Rect::new(WINDOW_W as i32 - 40 - i * 32, 22, 22, 22))
+            .unwrap();
+        canvas.set_draw_color(Color::RGB(20, 20, 20));
+        canvas
+            .draw_rect(Rect::new(WINDOW_W as i32 - 40 - i * 32, 22, 22, 22))
+            .unwrap();
+    }
+
+    let cx = WINDOW_W as i32 / 2;
+    let white = Color::WHITE;
+    match game.state {
+        GameState::Playing => {}
+        state => {
+            canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
+            canvas.set_draw_color(Color::RGBA(0, 0, 0, 150));
+            canvas
+                .fill_rect(Rect::new(0, 0, WINDOW_W, WINDOW_H))
+                .unwrap();
+
+            match state {
+                GameState::Menu => {
+                    render_text_centered("SNAKE", cx, 200, font_big, canvas, white).unwrap();
+                    render_text_centered("Press ENTER to start", cx, 330, font, canvas, white)
+                        .unwrap();
+                    render_text_centered(
+                        "Eat eggs. Cyan +1, yellow +3 (they vanish!)",
+                        cx,
+                        410,
+                        font_small,
+                        canvas,
+                        white,
+                    )
+                    .unwrap();
+                    render_text_centered(
+                        "Avoid the red viruses: each costs a life and your tail.",
+                        cx,
+                        445,
+                        font_small,
+                        canvas,
+                        white,
+                    )
+                    .unwrap();
+                    render_text_centered(
+                        "Don't bite yourself. Edges wrap around. Speed rises each level.",
+                        cx,
+                        480,
+                        font_small,
+                        canvas,
+                        white,
+                    )
+                    .unwrap();
+                    render_text_centered(
+                        "WASD / arrows to move   P pause   ESC quit",
+                        cx,
+                        540,
+                        font_small,
+                        canvas,
+                        white,
+                    )
+                    .unwrap();
+                    if game.high_score > 0 {
+                        render_text_centered(
+                            &format!("Best: {}", game.high_score),
+                            cx,
+                            600,
+                            font,
+                            canvas,
+                            Color::YELLOW,
+                        )
+                        .unwrap();
+                    }
+                }
+                GameState::Paused => {
+                    render_text_centered("PAUSED", cx, 300, font_big, canvas, white).unwrap();
+                    render_text_centered(
+                        "Press P or ENTER to resume",
+                        cx,
+                        400,
+                        font,
+                        canvas,
+                        white,
+                    )
+                    .unwrap();
+                }
+                GameState::GameOver => {
+                    render_text_centered("GAME OVER", cx, 240, font_big, canvas, white).unwrap();
+                    render_text_centered(
+                        &format!("Score {}   Level {}", game.score, game.level),
+                        cx,
+                        350,
+                        font,
+                        canvas,
+                        white,
+                    )
+                    .unwrap();
+                    let best = if game.new_high_score {
+                        "New high score!".to_string()
+                    } else {
+                        format!("Best {}", game.high_score)
+                    };
+                    render_text_centered(&best, cx, 400, font, canvas, Color::YELLOW).unwrap();
+                    render_text_centered("Press ENTER to play again", cx, 480, font, canvas, white)
+                        .unwrap();
+                }
+                GameState::Playing => {}
+            }
+            canvas.set_blend_mode(sdl2::render::BlendMode::None);
+        }
     }
 }

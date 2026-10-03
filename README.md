@@ -4,13 +4,13 @@
 Snake game implemented in [Rust](https://www.rust-lang.org/learn/get-started) using the [SDL2](https://wiki.libsdl.org/SDL2/FrontPage) library. Collect eggs to grow longer while avoiding self-collision. The game supports teleporting at screen edges, and visual feedback when attempting illegal moves.
 
 ## Features
-- Classic Snake gameplay
-- Smooth movement with a timer-based system
-- Randomly spawning collectible eggs
-- Flash warning on invalid turns
-- Edge teleportation
-- Pause and resume functionality
-- Score tracking
+- Title screen, pause, game over and instant restart (ENTER)
+- Cyan eggs (+1) and yellow eggs (+3, they vanish after a few seconds)
+- Red viruses: each hit costs a life and part of your tail (3 lives)
+- Levels: speed rises and more viruses appear every 10 points
+- Persistent high score (`highscore.txt`)
+- Queued turns, so fast key presses can never reverse the snake into itself
+- Edge wrap-around
 
 ## Requirements
 To run this game, you need:
@@ -44,12 +44,9 @@ To run this game, you need:
 | ESC      | Quit the Game        |
 
 ## How to Play
-- Use the arrow keys (or WASD) to control the snake.
-- Eat eggs to grow longer and increase your score.
-- Avoid colliding with yourself.
-- The snake can teleport through the screen edges.
-- Press `P` to pause or resume the game.
-- The game ends when the snake collides with itself.
+- Move with WASD or the arrow keys; ENTER starts or restarts, `P` pauses.
+- Eat eggs to grow and score; avoid viruses and your own body.
+- Biting yourself or losing all lives ends the game.
 
 ## Dependencies
 The game uses the following Rust crates:
@@ -58,10 +55,9 @@ The game uses the following Rust crates:
 - `rand` for generating random positions
 
 ## Future Improvements
-- Add sound effects
-- Improve graphics with textures
-- Implement different difficulty levels
-- Introduce additional collectibles with power-ups
+- Sound effects (needs SDL2_mixer)
+- Textures/sprites
+- Difficulty selection and power-ups
 
 ## License
 This project is licensed under the MIT License.

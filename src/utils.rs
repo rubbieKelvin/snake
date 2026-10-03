@@ -1,15 +1,4 @@
-use crate::constants::*;
-use sdl2::{pixels::Color, rect::Point, rect::Rect, render::WindowCanvas, ttf::Font};
-
-pub fn random_position_on_screen() -> Point {
-    let x = rand::random_range(0..(WINDOW_W / SNAKE_W) as i32);
-    let y = rand::random_range(0..(WINDOW_H / SNAKE_H) as i32);
-    return Point::new(x * SNAKE_W as i32, y * SNAKE_H as i32);
-}
-
-pub fn rect_from_point(point: &Point, w: u32, h: u32) -> Rect {
-    return Rect::new(point.x, point.y, w, h);
-}
+use sdl2::{pixels::Color, rect::Point, render::WindowCanvas, ttf::Font};
 
 pub fn render_text(
     text: &str,
@@ -34,4 +23,23 @@ pub fn render_text(
 
     canvas.copy(&texture, None, rect)?;
     return Ok(());
+}
+
+/// Renders text horizontally centered on `center_x`.
+pub fn render_text_centered(
+    text: &str,
+    center_x: i32,
+    y: i32,
+    font: &Font,
+    canvas: &mut WindowCanvas,
+    color: Color,
+) -> Result<(), String> {
+    let (w, _) = font.size_of(text).map_err(|e| e.to_string())?;
+    return render_text(
+        text,
+        Point::new(center_x - w as i32 / 2, y),
+        font,
+        canvas,
+        color,
+    );
 }
