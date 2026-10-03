@@ -9,6 +9,7 @@ pub enum Sfx {
     Eat,
     EatGolden,
     Power,
+    Heal,
     Boost,
     Hurt,
     ShieldBreak,
@@ -154,6 +155,11 @@ fn voices_for(sfx: Sfx, r: f32) -> Vec<Voice> {
             note(r, 120, 120, 1320.0, 1320.0, Square, 0.15),
         ],
         Sfx::Power => vec![note(r, 0, 260, 350.0, 1300.0, Triangle, 0.3)],
+        Sfx::Heal => vec![
+            note(r, 0, 100, 523.0, 523.0, Triangle, 0.3),
+            note(r, 100, 100, 784.0, 784.0, Triangle, 0.3),
+            note(r, 200, 200, 1047.0, 1047.0, Triangle, 0.3),
+        ],
         Sfx::Boost => vec![note(r, 0, 110, 180.0, 420.0, Noise, 0.08)],
         Sfx::Hurt => vec![
             note(r, 0, 220, 220.0, 70.0, Square, 0.18),

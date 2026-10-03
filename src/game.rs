@@ -19,6 +19,7 @@ pub struct Game {
     pub eggs: Vec<Collectible>,
     pub viruses: Vec<Collectible>,
     pub powers: Vec<Collectible>,
+    pub hearts: Vec<Collectible>,
     pub enemies: Vec<Enemy>,
     pub popups: Vec<Popup>,
     /// sound events waiting for the audio layer to play them
@@ -66,6 +67,7 @@ impl Game {
             eggs: Vec::new(),
             viruses: Vec::new(),
             powers: Vec::new(),
+            hearts: Vec::new(),
             enemies: Vec::new(),
             popups: Vec::new(),
             sounds: Vec::new(),
@@ -124,6 +126,7 @@ impl Game {
         self.eggs.clear();
         self.viruses.clear();
         self.powers.clear();
+        self.hearts.clear();
         self.enemies.clear();
         self.popups.clear();
 
@@ -368,6 +371,19 @@ impl Game {
             self.add_score(credit, new_head);
         }
 
+        // heart: restores a life
+        if let Some(i) = self.hearts.iter().position(|h| h.position == new_head) {
+            self.hearts.remove(i);
+            if self.lives < START_LIVES {
+                self.lives += 1;
+                self.sfx(Sfx::Heal);
+                self.popup(new_head, "+1 LIFE", Color::RGB(255, 90, 120));
+            } else {
+                // already at full health: worth a few points instead
+                self.add_score(2, new_head);
+            }
+        }
+
         // power-up
         if let Some(i) = self.powers.iter().position(|p| p.position == new_head) {
             let power = self.powers.remove(i);
@@ -453,6 +469,7 @@ impl Game {
             self.level = level;
             self.sfx(Sfx::LevelUp);
             self.spawn_viruses();
+            self.spawn_hearts();
             self.popup(offset(self.grid, at, 0, -2), &format!("LEVEL {}", level), Color::WHITE);
             // a second egg to chase every few levels
             if self.level % 3 == 0 && self.eggs.len() < 3 {
@@ -607,6 +624,17 @@ impl Game {
         );
     }
 
+    /// At the start of a level, offer back the lives that were lost (at most two).
+    fn spawn_hearts(&mut self) {
+        self.hearts.clear();
+        let missing = START_LIVES.saturating_sub(self.lives) as usize;
+        for _ in 0..missing.min(2) {
+            let pos = self.free_cell(3);
+            self.hearts
+                .push(Collectible::new(pos, CollectibleType::Heart));
+        }
+    }
+
     fn spawn_viruses(&mut self) {
         let count = (self.level as usize + 2).min(12);
         self.viruses.clear();
@@ -623,7 +651,8 @@ impl Game {
             || self.enemies.iter().any(|e| e.body.contains(&p))
             || self.eggs.iter().any(|e| e.position == p)
             || self.viruses.iter().any(|v| v.position == p)
-            || self.powers.iter().any(|v| v.position == p);
+            || self.powers.iter().any(|v| v.position == p)
+            || self.hearts.iter().any(|v| v.position == p);
     }
 
     /// A random cell not occupied by anything, at least `head_margin` cells from the head.

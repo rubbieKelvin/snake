@@ -167,6 +167,15 @@ fn draw_world(canvas: &mut WindowCanvas, game: &Game, fonts: &Fonts) {
         }
     }
 
+    for heart_item in &game.hearts {
+        let rect = cell_rect(&grid, heart_item.position);
+        // gentle bob so it reads as something to grab
+        let bob = ((game.clock * 5.0).sin() * 1.5) as i32;
+        let (x, y) = (rect.x + 3, rect.y + 4 + bob);
+        heart(canvas, x + 1, y + 1, 2, Color::RGBA(0, 0, 0, 110));
+        heart(canvas, x, y, 2, Color::RGB(255, 60, 95));
+    }
+
     for virus in &game.viruses {
         let rect = cell_rect(&grid, virus.position);
         fill(canvas, Color::RGB(150, 0, 170), inset(rect, 3));
@@ -453,6 +462,11 @@ fn draw_menu(canvas: &mut WindowCanvas, game: &Game, fonts: &Fonts) {
             Color::RGB(230, 60, 90),
             "",
             "Virus: costs a life and part of your tail".into(),
+        ),
+        (
+            Color::RGB(255, 60, 95),
+            "",
+            "Heart: restores a life (offered when a level starts)".into(),
         ),
         (
             Color::RGB(255, 140, 0),

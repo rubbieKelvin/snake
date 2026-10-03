@@ -142,6 +142,8 @@ pub enum CollectibleType {
     Egg { special: bool },
     Virus,
     Power(PowerKind),
+    /// restores a life; offered at the start of a level
+    Heart,
 }
 
 pub struct Collectible {
