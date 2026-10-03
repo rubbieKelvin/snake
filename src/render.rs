@@ -24,7 +24,7 @@ const HEART: [&str; 6] = [
 
 // small drawing helpers
 fn cell_rect(p: Point) -> Rect {
-    return Rect::new(p.x * CELL as i32, p.y * CELL as i32, CELL, CELL);
+    return Rect::new(p.x * CELL as i32, HUD_H + p.y * CELL as i32, CELL, CELL);
 }
 
 fn inset(r: Rect, by: i32) -> Rect {
@@ -187,7 +187,7 @@ fn draw_world(canvas: &mut WindowCanvas, game: &Game, fonts: &Fonts) {
     // floating popups
     for popup in &game.popups {
         let x = popup.position.x * CELL as i32 + 10;
-        let y = popup.position.y * CELL as i32 - (popup.age * 45.0) as i32 - 12;
+        let y = HUD_H + popup.position.y * CELL as i32 - (popup.age * 45.0) as i32 - 12;
         if let Ok((w, _)) = fonts.small.size_of(&popup.text) {
             let x = (x - w as i32 / 2).clamp(4, WINDOW_W as i32 - w as i32 - 4);
             text(
@@ -291,7 +291,7 @@ fn draw_player(canvas: &mut WindowCanvas, game: &Game) {
     }
 }
 
-// HUD
+// HUD: an opaque header above the board, never overlapping the playfield
 fn draw_hud(canvas: &mut WindowCanvas, game: &Game, fonts: &Fonts) {
     let w = WINDOW_W as i32;
     let light = Color::RGB(235, 255, 240);
@@ -299,74 +299,28 @@ fn draw_hud(canvas: &mut WindowCanvas, game: &Game, fonts: &Fonts) {
 
     fill(
         canvas,
-        Color::RGBA(8, 22, 12, 215),
+        Color::RGB(8, 22, 12),
         Rect::new(0, 0, WINDOW_W, HUD_H as u32),
     );
     fill(
         canvas,
-        Color::RGBA(255, 255, 255, 50),
-        Rect::new(0, HUD_H, WINDOW_W, 1),
+        Color::RGB(70, 110, 80),
+        Rect::new(0, HUD_H - 2, WINDOW_W, 2),
     );
 
     // score
-    text(canvas, &fonts.tiny, "SCORE", 20, 6, dim);
+    text(canvas, &fonts.tiny, "SCORE", 24, 10, dim);
     text(
         canvas,
-        &fonts.normal,
+        &fonts.big,
         &game.score.to_string(),
-        20,
-        20,
+        24,
+        18,
         light,
     );
-    if game.double > 0.0 {
-        text(
-            canvas,
-            &fonts.small,
-            "x2",
-            150,
-            28,
-            PowerKind::Double.color(),
-        );
-    }
 
-    // level progress
-    let into_level = (game.score % SCORE_PER_LEVEL) as f64 / SCORE_PER_LEVEL as f64;
-    text_center(
-        canvas,
-        &fonts.small,
-        &format!("LEVEL {}", game.level),
-        w / 2,
-        6,
-        light,
-    );
-    bar(
-        canvas,
-        Rect::new(w / 2 - 150, 38, 300, 12),
-        into_level,
-        Color::RGB(90, 220, 255),
-    );
-
-    // lives + best
-    for i in 0..START_LIVES as i32 {
-        let color = if i < game.lives as i32 {
-            Color::RGB(240, 50, 80)
-        } else {
-            Color::RGBA(0, 0, 0, 110)
-        };
-        heart(canvas, w - 30 - (i + 1) * 30 + 6, 8, 3, color);
-    }
-    text_right(
-        canvas,
-        &fonts.tiny,
-        &format!("BEST {}", game.high_score),
-        w - 20,
-        40,
-        dim,
-    );
-
-    // boost meter, bottom-left
-    let y = WINDOW_H as i32 - 54;
-    panel(canvas, Rect::new(14, y, 250, 40));
+    // boost meter
+    let bx = 250;
     let label = if game.boost_exhausted {
         "RECHARGING"
     } else {
@@ -376,12 +330,12 @@ fn draw_hud(canvas: &mut WindowCanvas, game: &Game, fonts: &Fonts) {
         canvas,
         &fonts.tiny,
         label,
-        24,
-        y + 4,
+        bx,
+        14,
         if game.boost_exhausted {
             Color::RGB(255, 110, 110)
         } else {
-            light
+            dim
         },
     );
     let bar_color = if game.boost_exhausted {
@@ -393,12 +347,29 @@ fn draw_hud(canvas: &mut WindowCanvas, game: &Game, fonts: &Fonts) {
     };
     bar(
         canvas,
-        Rect::new(24, y + 22, 230, 12),
+        Rect::new(bx, 36, 220, 16),
         game.boost_meter,
         bar_color,
     );
 
-    // active power-ups, bottom-center
+    // level progress, centered
+    let into_level = (game.score % SCORE_PER_LEVEL) as f64 / SCORE_PER_LEVEL as f64;
+    text_center(
+        canvas,
+        &fonts.normal,
+        &format!("LEVEL {}", game.level),
+        w / 2 - 40,
+        8,
+        light,
+    );
+    bar(
+        canvas,
+        Rect::new(w / 2 - 190, 46, 300, 14),
+        into_level,
+        Color::RGB(90, 220, 255),
+    );
+
+    // active power-ups
     let mut active: Vec<(PowerKind, f64)> = Vec::new();
     if game.shield {
         active.push((PowerKind::Shield, 1.0));
@@ -412,20 +383,37 @@ fn draw_hud(canvas: &mut WindowCanvas, game: &Game, fonts: &Fonts) {
     if game.double > 0.0 {
         active.push((PowerKind::Double, game.double / DOUBLE_TIME));
     }
-    let slot_w = 150;
-    let mut x = w / 2 - (active.len() as i32 * slot_w) / 2;
+    let slot_w = 100;
+    let mut x = w / 2 + 150;
     for (kind, frac) in active {
-        panel(canvas, Rect::new(x + 4, y, slot_w as u32 - 8, 40));
-        swatch(canvas, fonts, x + 10, y + 8, kind.color(), kind.letter());
-        text(canvas, &fonts.tiny, kind.name(), x + 40, y + 4, light);
+        swatch(canvas, fonts, x, 14, kind.color(), kind.letter());
         bar(
             canvas,
-            Rect::new(x + 40, y + 24, slot_w as u32 - 56, 10),
+            Rect::new(x, 46, slot_w as u32 - 10, 8),
             frac,
             kind.color(),
         );
+        text(canvas, &fonts.tiny, kind.name(), x + 30, 16, dim);
         x += slot_w;
     }
+
+    // lives + best
+    for i in 0..START_LIVES as i32 {
+        let color = if i < game.lives as i32 {
+            Color::RGB(240, 50, 80)
+        } else {
+            Color::RGB(40, 55, 45)
+        };
+        heart(canvas, w - 24 - (i + 1) * 30 + 6, 14, 3, color);
+    }
+    text_right(
+        canvas,
+        &fonts.small,
+        &format!("BEST {}", game.high_score),
+        w - 24,
+        46,
+        dim,
+    );
 }
 
 // overlays
@@ -489,7 +477,7 @@ fn draw_menu(canvas: &mut WindowCanvas, game: &Game, fonts: &Fonts) {
     text_center(
         canvas,
         &fonts.small,
-        "WASD / arrows: move     SPACE / SHIFT (hold): boost     P: pause     ESC: quit",
+        "WASD / arrows: move     SPACE / SHIFT (hold): boost     P: pause     M: mute     ESC: quit",
         cx,
         panel_rect.bottom() + 20,
         Color::WHITE,

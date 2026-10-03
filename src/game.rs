@@ -4,6 +4,7 @@ use std::fs;
 use sdl2::pixels::Color;
 use sdl2::rect::Point;
 
+use crate::audio::Sfx;
 use crate::constants::*;
 use crate::enemy::Enemy;
 use crate::objs::*;
@@ -19,6 +20,8 @@ pub struct Game {
     pub powers: Vec<Collectible>,
     pub enemies: Vec<Enemy>,
     pub popups: Vec<Popup>,
+    /// sound events waiting for the audio layer to play them
+    pub sounds: Vec<Sfx>,
     pub score: u32,
     pub high_score: u32,
     pub new_high_score: bool,
@@ -63,6 +66,7 @@ impl Game {
             powers: Vec::new(),
             enemies: Vec::new(),
             popups: Vec::new(),
+            sounds: Vec::new(),
             score: 0,
             high_score: load_high_score(),
             new_high_score: false,
@@ -136,6 +140,7 @@ impl Game {
         }
         self.reset();
         self.state = GameState::Playing;
+        self.sfx(Sfx::Start);
     }
 
     pub fn toggle_pause(&mut self) {
@@ -243,6 +248,7 @@ impl Game {
     }
 
     fn update_boost(&mut self, delta: f64) {
+        let was_boosting = self.boosting;
         let wanted = self.boost_held && !self.boost_exhausted && self.boost_meter > 0.0;
         if wanted {
             self.boost_meter -= BOOST_DRAIN * delta;
@@ -258,6 +264,9 @@ impl Game {
             }
         }
         self.boosting = wanted && self.boost_meter > 0.0;
+        if self.boosting && !was_boosting {
+            self.sfx(Sfx::Boost);
+        }
     }
 
     fn expire_special_eggs(&mut self) {
@@ -267,6 +276,12 @@ impl Game {
             if expired {
                 self.respawn_egg(i);
             }
+        }
+    }
+
+    fn sfx(&mut self, sfx: Sfx) {
+        if self.sounds.len() < 32 {
+            self.sounds.push(sfx);
         }
     }
 
@@ -344,6 +359,7 @@ impl Game {
                 CollectibleType::Egg { special: true } => 3,
                 _ => 1,
             };
+            self.sfx(if credit == 3 { Sfx::EatGolden } else { Sfx::Eat });
             self.pending_growth += credit as usize;
             self.boost_meter = (self.boost_meter + BOOST_EGG_BONUS).min(1.0);
             self.respawn_egg(i);
@@ -360,6 +376,7 @@ impl Game {
                     PowerKind::Freeze => self.freeze = FREEZE_TIME,
                     PowerKind::Double => self.double = DOUBLE_TIME,
                 }
+                self.sfx(Sfx::Power);
                 self.popup(new_head, kind.name(), kind.color());
             }
         }
@@ -374,11 +391,13 @@ impl Game {
 
         if self.shield {
             self.shield = false;
+            self.sfx(Sfx::ShieldBreak);
             self.popup(at, "SHIELD BROKE", PowerKind::Shield.color());
             return;
         }
 
         self.lives -= 1;
+        self.sfx(Sfx::Hurt);
         self.popup(at, "-1 LIFE", Color::RGB(255, 70, 90));
         if self.lives == 0 {
             self.death_reason = "Out of lives";
@@ -394,6 +413,7 @@ impl Game {
     fn ram(&mut self, enemy: usize, index: usize, at: Point) {
         let removed = (self.enemies[enemy].body.len() - index) as u32;
         self.enemies[enemy].body.truncate(index);
+        self.sfx(Sfx::Ram);
         self.popup(at, "RAM!", Color::RGB(255, 140, 0));
         self.add_score(removed, at);
         if self.enemies[enemy].body.len() < 3 {
@@ -429,6 +449,7 @@ impl Game {
         let level = self.score / SCORE_PER_LEVEL + 1;
         if level > self.level {
             self.level = level;
+            self.sfx(Sfx::LevelUp);
             self.spawn_viruses();
             self.popup(offset(at, 0, -2), &format!("LEVEL {}", level), Color::WHITE);
             // a second egg to chase every few levels
@@ -444,6 +465,7 @@ impl Game {
 
     fn game_over(&mut self) {
         self.state = GameState::GameOver;
+        self.sfx(Sfx::GameOver);
         self.over_age = 0.0;
         self.boosting = false;
         if self.score > self.high_score {
@@ -494,6 +516,7 @@ impl Game {
     fn step_enemy(&mut self, i: usize) {
         let Some(dir) = self.enemy_choose_dir(i) else {
             // boxed in: it crashes
+            self.sfx(Sfx::Crash);
             self.popup(self.enemies[i].head(), "CRASH!", Color::RGB(255, 140, 0));
             self.kill_enemy(i);
             return;
@@ -649,6 +672,7 @@ mod tests {
                 game.add_score(1, Point::new(0, 0));
             }
             game.update(0.016);
+            game.sounds.clear();
             assert!(game.snake.len() >= 2);
             assert!(game.enemies.iter().all(|e| !e.body.is_empty()));
         }

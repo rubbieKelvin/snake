@@ -5,11 +5,13 @@ use sdl2::{
     keyboard::{Keycode, Scancode},
 };
 
+use audio::Audio;
 use constants::*;
 use game::Game;
 use objs::{Direction, GameState};
 use render::{render, Fonts};
 
+mod audio;
 mod constants;
 mod enemy;
 mod game;
@@ -42,6 +44,9 @@ fn main() {
     let mut canvas = window.into_canvas().present_vsync().build().unwrap();
     let mut event_pump = sdl_context.event_pump().unwrap();
 
+    // audio is optional: without a device the game simply runs silent
+    let mut audio = sdl_context.audio().ok().and_then(|a| Audio::new(&a));
+
     let mut game = Game::new();
     let mut last_frame = Instant::now();
 
@@ -60,6 +65,11 @@ fn main() {
                     Keycode::W | Keycode::Up => game.turn(Direction::Up),
                     Keycode::S | Keycode::Down => game.turn(Direction::Down),
                     Keycode::P => game.toggle_pause(),
+                    Keycode::M => {
+                        if let Some(audio) = audio.as_mut() {
+                            audio.muted = !audio.muted;
+                        }
+                    }
                     Keycode::Return | Keycode::Space => match game.state {
                         GameState::Menu | GameState::GameOver => game.start(),
                         GameState::Paused => game.toggle_pause(),
@@ -84,6 +94,12 @@ fn main() {
         let delta = now.duration_since(last_frame).as_secs_f64().min(0.1);
         last_frame = now;
         game.update(delta);
+
+        for sfx in game.sounds.drain(..) {
+            if let Some(audio) = audio.as_mut() {
+                audio.play(sfx);
+            }
+        }
 
         render(&mut canvas, &game, &fonts);
         canvas.present();
