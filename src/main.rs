@@ -8,7 +8,7 @@ use sdl2::{
 use audio::Audio;
 use constants::*;
 use game::Game;
-use objs::{Direction, GameState};
+use objs::{Direction, GameState, Grid};
 use render::{render, Fonts};
 
 mod audio;
@@ -26,8 +26,10 @@ fn main() {
     let window = video_subsystem
         .window("Snake game", WINDOW_W, WINDOW_H)
         .position_centered()
+        .fullscreen_desktop()
         .build()
         .unwrap();
+    sdl_context.mouse().show_cursor(false);
 
     let load = |size: u16| {
         ttf_context
@@ -47,7 +49,9 @@ fn main() {
     // audio is optional: without a device the game simply runs silent
     let mut audio = sdl_context.audio().ok().and_then(|a| Audio::new(&a));
 
-    let mut game = Game::new();
+    // cells keep their size; a bigger screen just gives a bigger board
+    let (screen_w, screen_h) = canvas.window().size();
+    let mut game = Game::new(Grid::for_screen(screen_w, screen_h));
     let mut last_frame = Instant::now();
 
     'running: loop {

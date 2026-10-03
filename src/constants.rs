@@ -1,12 +1,11 @@
 pub const CELL: u32 = 20;
 
+// design size: the menus are laid out for this, and it is the size used if fullscreen fails
 pub const WINDOW_W: u32 = 1400;
 pub const WINDOW_H: u32 = 800;
 
-pub const COLS: i32 = (WINDOW_W / CELL) as i32;
 // the header sits above the board and is not part of the playfield
 pub const HUD_H: i32 = 80;
-pub const ROWS: i32 = (WINDOW_H as i32 - HUD_H) / CELL as i32;
 
 pub const START_LIVES: u8 = 3;
 pub const SCORE_PER_LEVEL: u32 = 10;

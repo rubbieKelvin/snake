@@ -10,6 +10,7 @@ use crate::enemy::Enemy;
 use crate::objs::*;
 
 pub struct Game {
+    pub grid: Grid,
     pub state: GameState,
     pub snake: VecDeque<Point>,
     pub dir: Direction,
@@ -55,8 +56,9 @@ pub struct Game {
 }
 
 impl Game {
-    pub fn new() -> Self {
+    pub fn new(grid: Grid) -> Self {
         let mut game = Game {
+            grid,
             state: GameState::Menu,
             snake: VecDeque::new(),
             dir: Direction::Right,
@@ -96,7 +98,7 @@ impl Game {
 
     /// Starts a fresh round (keeps the high score).
     pub fn reset(&mut self) {
-        let (cx, cy) = (COLS / 2, ROWS / 2);
+        let (cx, cy) = (self.grid.cols / 2, self.grid.rows / 2);
         self.snake = (0..3).map(|i| Point::new(cx - i, cy)).collect();
         self.dir = Direction::Right;
         self.queue.clear();
@@ -300,7 +302,7 @@ impl Game {
             self.dir = next;
         }
 
-        let new_head = step(self.snake[0], self.dir);
+        let new_head = step(self.grid, self.snake[0], self.dir);
 
         // hitting yourself ends the game; the tail cell is free if it's about to move away
         if self.ghost <= 0.0 {
@@ -451,7 +453,7 @@ impl Game {
             self.level = level;
             self.sfx(Sfx::LevelUp);
             self.spawn_viruses();
-            self.popup(offset(at, 0, -2), &format!("LEVEL {}", level), Color::WHITE);
+            self.popup(offset(self.grid, at, 0, -2), &format!("LEVEL {}", level), Color::WHITE);
             // a second egg to chase every few levels
             if self.level % 3 == 0 && self.eggs.len() < 3 {
                 let pos = self.free_cell(0);
@@ -481,13 +483,14 @@ impl Game {
         let head = self.snake[0];
         for _ in 0..80 {
             let dir = Direction::ALL[rand::random_range(0..4)];
-            let start = Point::new(rand::random_range(0..COLS), rand::random_range(0..ROWS));
-            if wrapped_dist(start, head) < 20 {
+            let start = Point::new(rand::random_range(0..self.grid.cols),
+                rand::random_range(0..self.grid.rows));
+            if wrapped_dist(self.grid, start, head) < 20 {
                 continue;
             }
             let (dx, dy) = dir.delta();
             let body: VecDeque<Point> = (0..ENEMY_START_LEN as i32)
-                .map(|i| offset(start, -dx * i, -dy * i))
+                .map(|i| offset(self.grid, start, -dx * i, -dy * i))
                 .collect();
             if body.iter().all(|c| !self.occupied(*c)) {
                 let n = self.enemies_spawned;
@@ -522,7 +525,7 @@ impl Game {
             return;
         };
 
-        let new_head = step(self.enemies[i].head(), dir);
+        let new_head = step(self.grid, self.enemies[i].head(), dir);
         let enemy = &mut self.enemies[i];
         enemy.dir = dir;
         enemy.body.push_front(new_head);
@@ -555,15 +558,15 @@ impl Game {
         let head = enemy.head();
         let player = self.snake[0];
 
-        let target = if enemy.hunter && wrapped_dist(head, player) < 30 {
+        let target = if enemy.hunter && wrapped_dist(self.grid, head, player) < 30 {
             // aim ahead of the player to cut them off
             let (dx, dy) = self.dir.delta();
-            offset(player, dx * 4, dy * 4)
+            offset(self.grid, player, dx * 4, dy * 4)
         } else {
             self.eggs
                 .iter()
                 .map(|e| e.position)
-                .min_by_key(|p| wrapped_dist(head, *p))
+                .min_by_key(|p| wrapped_dist(self.grid, head, *p))
                 .unwrap_or(player)
         };
 
@@ -572,16 +575,16 @@ impl Game {
             if dir == enemy.dir.opposite() {
                 continue;
             }
-            let next = step(head, dir);
+            let next = step(self.grid, head, dir);
             if self.enemy_blocked(next) {
                 continue;
             }
             // avoid walking into dead ends, but not perfectly, so they can still be trapped
             let exits = Direction::ALL
                 .iter()
-                .filter(|d| !self.enemy_blocked(step(next, **d)))
+                .filter(|d| !self.enemy_blocked(step(self.grid, next, **d)))
                 .count();
-            let mut score = wrapped_dist(next, target) * 10 + rand::random_range(0..12);
+            let mut score = wrapped_dist(self.grid, next, target) * 10 + rand::random_range(0..12);
             if exits == 0 {
                 score += 200;
             }
@@ -627,8 +630,9 @@ impl Game {
     fn free_cell(&self, head_margin: i32) -> Point {
         let head = self.snake[0];
         loop {
-            let p = Point::new(rand::random_range(0..COLS), rand::random_range(0..ROWS));
-            if wrapped_dist(p, head) > head_margin && !self.occupied(p) {
+            let p = Point::new(rand::random_range(0..self.grid.cols),
+                rand::random_range(0..self.grid.rows));
+            if wrapped_dist(self.grid, p, head) > head_margin && !self.occupied(p) {
                 return p;
             }
         }
@@ -656,7 +660,7 @@ mod tests {
     /// Plays thousands of frames with random input at every level, looking for panics.
     #[test]
     fn random_play_never_panics() {
-        let mut game = Game::new();
+        let mut game = Game::new(Grid::for_screen(WINDOW_W, WINDOW_H));
         for frame in 0..60_000u32 {
             if game.state != GameState::Playing {
                 game.update(1.0);

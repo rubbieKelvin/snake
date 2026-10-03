@@ -23,8 +23,9 @@ const HEART: [&str; 6] = [
 ];
 
 // small drawing helpers
-fn cell_rect(p: Point) -> Rect {
-    return Rect::new(p.x * CELL as i32, HUD_H + p.y * CELL as i32, CELL, CELL);
+fn cell_rect(grid: &Grid, p: Point) -> Rect {
+    let o = grid.origin();
+    return Rect::new(o.x + p.x * CELL as i32, o.y + p.y * CELL as i32, CELL, CELL);
 }
 
 fn inset(r: Rect, by: i32) -> Rect {
@@ -114,14 +115,15 @@ fn swatch(canvas: &mut WindowCanvas, fonts: &Fonts, x: i32, y: i32, color: Color
 
 // world
 fn draw_world(canvas: &mut WindowCanvas, game: &Game, fonts: &Fonts) {
+    let grid = game.grid;
     // checkerboard: fill once, then paint only the alternate cells
     canvas.set_draw_color(Color::RGB(38, 158, 70));
     canvas.clear();
     canvas.set_draw_color(Color::RGB(45, 172, 80));
-    for y in 0..ROWS {
-        for x in 0..COLS {
+    for y in 0..grid.rows {
+        for x in 0..grid.cols {
             if (x + y) % 2 == 0 {
-                let _ = canvas.fill_rect(cell_rect(Point::new(x, y)));
+                let _ = canvas.fill_rect(cell_rect(&grid, Point::new(x, y)));
             }
         }
     }
@@ -130,7 +132,7 @@ fn draw_world(canvas: &mut WindowCanvas, game: &Game, fonts: &Fonts) {
 
     for egg in &game.eggs {
         if let CollectibleType::Egg { special } = egg.class {
-            let rect = cell_rect(egg.position);
+            let rect = cell_rect(&grid, egg.position);
             // special eggs blink while about to expire
             let urgent = special && egg.age > SPECIAL_EGG_LIFETIME - 2.0;
             if urgent && (egg.age * 6.0) as i32 % 2 == 0 {
@@ -151,7 +153,7 @@ fn draw_world(canvas: &mut WindowCanvas, game: &Game, fonts: &Fonts) {
             if power.age > POWER_LIFETIME - 3.0 && (power.age * 8.0) as i32 % 2 == 0 {
                 continue;
             }
-            let rect = cell_rect(power.position);
+            let rect = cell_rect(&grid, power.position);
             let glow = (60.0 + 120.0 * pulse) as u8;
             fill(canvas, Color::RGBA(255, 255, 255, glow), inset(rect, -3));
             swatch(
@@ -166,7 +168,7 @@ fn draw_world(canvas: &mut WindowCanvas, game: &Game, fonts: &Fonts) {
     }
 
     for virus in &game.viruses {
-        let rect = cell_rect(virus.position);
+        let rect = cell_rect(&grid, virus.position);
         fill(canvas, Color::RGB(150, 0, 170), inset(rect, 3));
         fill(canvas, Color::RGB(230, 60, 90), inset(rect, 7));
         outline(canvas, Color::RGB(20, 20, 20), inset(rect, 3));
@@ -186,10 +188,10 @@ fn draw_world(canvas: &mut WindowCanvas, game: &Game, fonts: &Fonts) {
 
     // floating popups
     for popup in &game.popups {
-        let x = popup.position.x * CELL as i32 + 10;
-        let y = HUD_H + popup.position.y * CELL as i32 - (popup.age * 45.0) as i32 - 12;
+        let x = grid.origin().x + popup.position.x * CELL as i32 + 10;
+        let y = grid.origin().y + popup.position.y * CELL as i32 - (popup.age * 45.0) as i32 - 12;
         if let Ok((w, _)) = fonts.small.size_of(&popup.text) {
-            let x = (x - w as i32 / 2).clamp(4, WINDOW_W as i32 - w as i32 - 4);
+            let x = (x - w as i32 / 2).clamp(4, grid.width as i32 - w as i32 - 4);
             text(
                 canvas,
                 &fonts.small,
@@ -203,8 +205,8 @@ fn draw_world(canvas: &mut WindowCanvas, game: &Game, fonts: &Fonts) {
     }
 }
 
-fn eyes(canvas: &mut WindowCanvas, cell: Point, dir: Direction, color: Color) {
-    let r = cell_rect(cell);
+fn eyes(canvas: &mut WindowCanvas, grid: Grid, cell: Point, dir: Direction, color: Color) {
+    let r = cell_rect(&grid, cell);
     let (dx, dy) = dir.delta();
     // two eyes offset perpendicular to the heading, pushed forward a bit
     let (px, py) = (dy.abs(), dx.abs());
@@ -216,6 +218,7 @@ fn eyes(canvas: &mut WindowCanvas, cell: Point, dir: Direction, color: Color) {
 }
 
 fn draw_enemies(canvas: &mut WindowCanvas, game: &Game) {
+    let grid = game.grid;
     let frozen = game.freeze > 0.0;
     for enemy in &game.enemies {
         let (r, g, b) = ENEMY_PALETTE[enemy.color_idx % ENEMY_PALETTE.len()];
@@ -236,17 +239,18 @@ fn draw_enemies(canvas: &mut WindowCanvas, game: &Game) {
                     (b as f32 * shade) as u8,
                 )
             };
-            let rect = cell_rect(*cell);
+            let rect = cell_rect(&grid, *cell);
             fill(canvas, color, if i == 0 { rect } else { inset(rect, 1) });
             if i == 0 {
                 outline(canvas, Color::RGB(20, 20, 20), rect);
             }
         }
-        eyes(canvas, enemy.head(), enemy.dir, Color::RGB(220, 20, 20));
+        eyes(canvas, grid, enemy.head(), enemy.dir, Color::RGB(220, 20, 20));
     }
 }
 
 fn draw_player(canvas: &mut WindowCanvas, game: &Game) {
+    let grid = game.grid;
     let len = game.snake.len();
     let hurt_flash = game.damage_flash > 0.0 && (game.damage_flash * 10.0) as i32 % 2 == 0;
     let dead = game.state == GameState::GameOver;
@@ -254,7 +258,7 @@ fn draw_player(canvas: &mut WindowCanvas, game: &Game) {
     let alpha = if game.ghost > 0.0 { 130 } else { 255 };
 
     for (index, cell) in game.snake.iter().enumerate() {
-        let rect = cell_rect(*cell);
+        let rect = cell_rect(&grid, *cell);
         let ratio = (index as f32 + 1.0) / len as f32;
         let iratio = ((len - index) as f32 + 1.0) / len as f32;
         let (mut r, mut g, mut b) = (
@@ -282,30 +286,31 @@ fn draw_player(canvas: &mut WindowCanvas, game: &Game) {
     // boost glow around the head
     if game.boosting {
         if let Some(head) = game.snake.front() {
-            outline(canvas, Color::YELLOW, inset(cell_rect(*head), -2));
+            outline(canvas, Color::YELLOW, inset(cell_rect(&grid, *head), -2));
         }
     }
 
     if let Some(head) = game.snake.front() {
-        eyes(canvas, *head, game.dir, Color::WHITE);
+        eyes(canvas, grid, *head, game.dir, Color::WHITE);
     }
 }
 
 // HUD: an opaque header above the board, never overlapping the playfield
 fn draw_hud(canvas: &mut WindowCanvas, game: &Game, fonts: &Fonts) {
-    let w = WINDOW_W as i32;
+    let grid = game.grid;
+    let w = grid.width as i32;
     let light = Color::RGB(235, 255, 240);
     let dim = Color::RGB(150, 190, 160);
 
     fill(
         canvas,
         Color::RGB(8, 22, 12),
-        Rect::new(0, 0, WINDOW_W, HUD_H as u32),
+        Rect::new(0, 0, grid.width, HUD_H as u32),
     );
     fill(
         canvas,
         Color::RGB(70, 110, 80),
-        Rect::new(0, HUD_H - 2, WINDOW_W, 2),
+        Rect::new(0, HUD_H - 2, grid.width, 2),
     );
 
     // score
@@ -570,13 +575,19 @@ pub fn render(canvas: &mut WindowCanvas, game: &Game, fonts: &Fonts) {
         fill(
             canvas,
             Color::RGBA(0, 0, 0, 140),
-            Rect::new(0, 0, WINDOW_W, WINDOW_H),
+            Rect::new(0, 0, game.grid.width, game.grid.height),
         );
     }
+
+    // the overlays are laid out for the design size, so center that area on the screen
+    let x = (game.grid.width as i32 - WINDOW_W as i32) / 2;
+    let y = (game.grid.height as i32 - WINDOW_H as i32) / 2;
+    canvas.set_viewport(Rect::new(x, y, WINDOW_W, WINDOW_H));
     match game.state {
         GameState::Menu => draw_menu(canvas, game, fonts),
         GameState::Paused => draw_paused(canvas, fonts),
         GameState::GameOver => draw_game_over(canvas, game, fonts),
         GameState::Playing => {}
     }
+    canvas.set_viewport(None);
 }

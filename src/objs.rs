@@ -37,20 +37,52 @@ impl Direction {
     }
 }
 
-/// Grid coordinates (not pixels), wrapped around the board edges.
-pub fn step(from: Point, dir: Direction) -> Point {
-    return offset(from, dir.delta().0, dir.delta().1);
+/// The playfield: as many CELL-sized cells as fit below the header, so a bigger screen
+/// means a bigger board rather than a bigger scale.
+#[derive(Clone, Copy)]
+pub struct Grid {
+    pub cols: i32,
+    pub rows: i32,
+    /// full screen size in pixels
+    pub width: u32,
+    pub height: u32,
 }
 
-pub fn offset(from: Point, dx: i32, dy: i32) -> Point {
-    return Point::new((from.x + dx).rem_euclid(COLS), (from.y + dy).rem_euclid(ROWS));
+impl Grid {
+    pub fn for_screen(width: u32, height: u32) -> Grid {
+        return Grid {
+            cols: ((width / CELL) as i32).max(20),
+            rows: ((height as i32 - HUD_H) / CELL as i32).max(15),
+            width,
+            height,
+        };
+    }
+
+    /// Pixel position of the board's top-left cell, centered in the space below the header.
+    pub fn origin(&self) -> Point {
+        let spare_x = self.width as i32 - self.cols * CELL as i32;
+        let spare_y = self.height as i32 - HUD_H - self.rows * CELL as i32;
+        return Point::new(spare_x / 2, HUD_H + spare_y / 2);
+    }
+}
+
+/// Grid coordinates (not pixels), wrapped around the board edges.
+pub fn step(grid: Grid, from: Point, dir: Direction) -> Point {
+    return offset(grid, from, dir.delta().0, dir.delta().1);
+}
+
+pub fn offset(grid: Grid, from: Point, dx: i32, dy: i32) -> Point {
+    return Point::new(
+        (from.x + dx).rem_euclid(grid.cols),
+        (from.y + dy).rem_euclid(grid.rows),
+    );
 }
 
 /// Manhattan distance on a board that wraps at the edges.
-pub fn wrapped_dist(a: Point, b: Point) -> i32 {
+pub fn wrapped_dist(grid: Grid, a: Point, b: Point) -> i32 {
     let dx = (a.x - b.x).abs();
     let dy = (a.y - b.y).abs();
-    return dx.min(COLS - dx) + dy.min(ROWS - dy);
+    return dx.min(grid.cols - dx) + dy.min(grid.rows - dy);
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
