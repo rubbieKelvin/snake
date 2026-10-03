@@ -5,12 +5,14 @@ Snake game implemented in [Rust](https://www.rust-lang.org/learn/get-started) us
 
 ## Features
 - Title screen, pause, game over and instant restart (ENTER)
-- Cyan eggs (+1) and yellow eggs (+3, they vanish after a few seconds)
+- **Enemy snakes** (from level 2) that hunt eggs or try to cut you off; they crash into things and leave golden eggs
+- **Boost**: hold SPACE/SHIFT to go twice as fast, drawing on a meter that refills. Boost into an enemy's body to ram it in half
+- **Power-ups**: Shield (absorbs a hit), Ghost (pass through bodies), Freeze (stops enemies), 2x Score
+- Cyan eggs (+1) and golden eggs (+3, they vanish)
 - Red viruses: each hit costs a life and part of your tail (3 lives)
-- Levels: speed rises and more viruses appear every 10 points
+- Levels: speed rises and more viruses and enemies appear every 10 points
+- HUD with level progress, lives, boost meter and active power timers; floating score popups
 - Persistent high score (`highscore.txt`)
-- Queued turns, so fast key presses can never reverse the snake into itself
-- Edge wrap-around
 
 ## Requirements
 To run this game, you need:
@@ -41,12 +43,14 @@ To run this game, you need:
 | S / DOWN | Move Down            |
 | D / RIGHT| Move Right           |
 | P        | Pause/Resume Game    |
+| SPACE / SHIFT (hold) | Boost  |
+| ENTER    | Start / restart      |
 | ESC      | Quit the Game        |
 
 ## How to Play
-- Move with WASD or the arrow keys; ENTER starts or restarts, `P` pauses.
-- Eat eggs to grow and score; avoid viruses and your own body.
-- Biting yourself or losing all lives ends the game.
+- Eat eggs to grow and score; avoid viruses, enemy snakes and your own body.
+- Hits cost a life (and part of your tail). Biting yourself or losing all lives ends the game.
+- Boost into an enemy's *body* to cut it and score the severed cells. Hitting its head, or not boosting, hurts you.
 
 ## Dependencies
 The game uses the following Rust crates:

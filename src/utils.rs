@@ -25,7 +25,7 @@ pub fn render_text(
     return Ok(());
 }
 
-/// Renders text horizontally centered on `center_x`.
+/// Renders text horizontally centered on `center_x`
 pub fn render_text_centered(
     text: &str,
     center_x: i32,
@@ -35,6 +35,7 @@ pub fn render_text_centered(
     color: Color,
 ) -> Result<(), String> {
     let (w, _) = font.size_of(text).map_err(|e| e.to_string())?;
+
     return render_text(
         text,
         Point::new(center_x - w as i32 / 2, y),
