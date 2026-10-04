@@ -21,6 +21,9 @@ const ENEMY_PALETTE: [(u8, u8, u8); 3] = [(255, 140, 0), (130, 90, 255), (30, 11
 const HEART: [&str; 6] = [
     ".##.##.", "#######", "#######", ".#####.", "..###..", "...#...",
 ];
+/// r = copper tip, b = brass casing, d = rim
+const ROUND: [&str; 7] = [".rr.", "rrrr", "bbbb", "bbbb", "bbbb", "bbbb", "dddd"];
+const BRASS: Color = Color::RGB(230, 190, 80);
 
 // small drawing helpers
 fn cell_rect(grid: &Grid, p: Point) -> Rect {
@@ -93,6 +96,28 @@ fn heart(canvas: &mut WindowCanvas, x: i32, y: i32, scale: i32, color: Color) {
                 );
                 fill(canvas, color, r);
             }
+        }
+    }
+}
+
+/// One cartridge, 4x7 pixels at `scale`; a spent one is drawn as an empty slot.
+fn cartridge(canvas: &mut WindowCanvas, x: i32, y: i32, scale: i32, spent: bool) {
+    for (row, line) in ROUND.iter().enumerate() {
+        for (col, ch) in line.chars().enumerate() {
+            let color = match (ch, spent) {
+                ('.', _) => continue,
+                (_, true) => Color::RGB(40, 55, 45),
+                ('r', _) => Color::RGB(205, 110, 60),
+                ('d', _) => Color::RGB(150, 110, 40),
+                _ => BRASS,
+            };
+            let r = Rect::new(
+                x + col as i32 * scale,
+                y + row as i32 * scale,
+                scale as u32,
+                scale as u32,
+            );
+            fill(canvas, color, r);
         }
     }
 }
@@ -176,6 +201,15 @@ fn draw_world(canvas: &mut WindowCanvas, game: &Game, fonts: &Fonts) {
         heart(canvas, x, y, 2, Color::RGB(255, 60, 95));
     }
 
+    for drop in &game.ammo_drops {
+        let rect = cell_rect(&grid, drop.position);
+        let bob = ((game.clock * 5.0 + 1.0).sin() * 1.5) as i32;
+        fill(canvas, Color::RGBA(0, 0, 0, 90), inset(rect, 1));
+        for i in 0..3 {
+            cartridge(canvas, rect.x + 2 + i * 9, rect.y + 8 + bob, 2, false);
+        }
+    }
+
     for virus in &game.viruses {
         let rect = cell_rect(&grid, virus.position);
         fill(canvas, Color::RGB(150, 0, 170), inset(rect, 3));
@@ -194,6 +228,7 @@ fn draw_world(canvas: &mut WindowCanvas, game: &Game, fonts: &Fonts) {
 
     draw_enemies(canvas, game);
     draw_player(canvas, game);
+    draw_bullets(canvas, game);
 
     // floating popups
     for popup in &game.popups {
@@ -231,7 +266,11 @@ fn eyes(canvas: &mut WindowCanvas, grid: Grid, cell: Point, dir: Direction, colo
 fn diamond(canvas: &mut WindowCanvas, cx: i32, cy: i32, half: i32, color: Color) {
     for dy in -half..=half {
         let w = half - dy.abs();
-        fill(canvas, color, Rect::new(cx - w, cy + dy, (w * 2 + 1) as u32, 1));
+        fill(
+            canvas,
+            color,
+            Rect::new(cx - w, cy + dy, (w * 2 + 1) as u32, 1),
+        );
     }
 }
 
@@ -266,8 +305,16 @@ fn enemy_head(canvas: &mut WindowCanvas, rect: Rect, dir: Direction, color: Colo
     for side in [-1, 1] {
         let ex = c.x - dx * 2 + px * side * 5;
         let ey = c.y - dy * 2 + py * side * 5;
-        fill(canvas, dark, Rect::new(ex - 3 + dx * 2, ey - 3 + dy * 2, 6, 2));
-        fill(canvas, Color::RGB(255, 40, 40), Rect::new(ex - 2, ey - 2, 4, 4));
+        fill(
+            canvas,
+            dark,
+            Rect::new(ex - 3 + dx * 2, ey - 3 + dy * 2, 6, 2),
+        );
+        fill(
+            canvas,
+            Color::RGB(255, 40, 40),
+            Rect::new(ex - 2, ey - 2, 4, 4),
+        );
     }
 }
 
@@ -277,10 +324,13 @@ fn draw_enemies(canvas: &mut WindowCanvas, game: &Game) {
     for enemy in &game.enemies {
         let (r, g, b) = ENEMY_PALETTE[enemy.color_idx % ENEMY_PALETTE.len()];
         let len = enemy.body.len();
+        let flash = enemy.hit_flash > 0.0;
         // fade toward the tail
         let seg = |i: usize| -> (u8, u8, u8) {
             let s = 1.0 - 0.45 * (i as f32 / len as f32);
-            if frozen {
+            if flash {
+                (255, 255, 255)
+            } else if frozen {
                 ((170.0 * s) as u8, (225.0 * s) as u8, (255.0 * s) as u8)
             } else {
                 (
@@ -377,6 +427,25 @@ fn draw_player(canvas: &mut WindowCanvas, game: &Game) {
     }
 }
 
+/// A bright slug with a short fading trail behind it.
+fn draw_bullets(canvas: &mut WindowCanvas, game: &Game) {
+    for bullet in &game.bullets {
+        let c = cell_rect(&game.grid, bullet.position).center();
+        let (dx, dy) = bullet.dir.delta();
+        for (back, size, alpha) in [(11, 3, 90), (6, 4, 160)] {
+            let (tx, ty) = (c.x - dx * back, c.y - dy * back);
+            fill(
+                canvas,
+                Color::RGBA(255, 220, 120, alpha),
+                Rect::new(tx - size / 2, ty - size / 2, size as u32, size as u32),
+            );
+        }
+        let core = Rect::new(c.x - 4, c.y - 4, 8, 8);
+        fill(canvas, Color::RGB(255, 245, 170), core);
+        outline(canvas, Color::RGB(20, 20, 20), core);
+    }
+}
+
 // HUD: an opaque header above the board, never overlapping the playfield
 fn draw_hud(canvas: &mut WindowCanvas, game: &Game, fonts: &Fonts) {
     let grid = game.grid;
@@ -397,14 +466,7 @@ fn draw_hud(canvas: &mut WindowCanvas, game: &Game, fonts: &Fonts) {
 
     // score
     text(canvas, &fonts.tiny, "SCORE", 24, 10, dim);
-    text(
-        canvas,
-        &fonts.big,
-        &game.score.to_string(),
-        24,
-        18,
-        light,
-    );
+    text(canvas, &fonts.big, &game.score.to_string(), 24, 18, light);
 
     // boost meter
     let bx = 250;
@@ -438,6 +500,23 @@ fn draw_hud(canvas: &mut WindowCanvas, game: &Game, fonts: &Fonts) {
         game.boost_meter,
         bar_color,
     );
+
+    // chamber
+    text(
+        canvas,
+        &fonts.tiny,
+        "AMMO  [F]",
+        bx,
+        64,
+        if game.ammo == 0 {
+            Color::RGB(255, 110, 110)
+        } else {
+            dim
+        },
+    );
+    for i in 0..MAX_AMMO as i32 {
+        cartridge(canvas, bx + 90 + i * 14, 60, 2, i >= game.ammo as i32);
+    }
 
     // level progress, centered
     let into_level = (game.score % SCORE_PER_LEVEL) as f64 / SCORE_PER_LEVEL as f64;
@@ -532,7 +611,7 @@ fn draw_menu(canvas: &mut WindowCanvas, game: &Game, fonts: &Fonts) {
         );
     }
 
-    let panel_rect = Rect::new(cx - 400, 205, 800, 410);
+    let panel_rect = Rect::new(cx - 400, 205, 800, 446);
     panel(canvas, panel_rect);
     let x = panel_rect.x + 30;
     let mut y = panel_rect.y + 20;
@@ -558,7 +637,15 @@ fn draw_menu(canvas: &mut WindowCanvas, game: &Game, fonts: &Fonts) {
         (
             Color::RGB(255, 140, 0),
             "",
-            "Enemy snake: avoid it, or ram its body while boosting".into(),
+            "Enemy snake: shoot it shorter, or ram its body while boosting".into(),
+        ),
+        (
+            BRASS,
+            "A",
+            format!(
+                "Ammo: +{} rounds (chamber holds {}); shots pop viruses",
+                AMMO_PICKUP, MAX_AMMO
+            ),
         ),
     ];
     for (color, label, desc) in rows {
@@ -583,7 +670,7 @@ fn draw_menu(canvas: &mut WindowCanvas, game: &Game, fonts: &Fonts) {
     text_center(
         canvas,
         &fonts.small,
-        "WASD / arrows: move     SPACE / SHIFT (hold): boost     P: pause     M: mute     ESC: quit",
+        "WASD / arrows: move     SPACE / SHIFT (hold): boost     F / J: shoot     P: pause     M: mute     ESC: quit",
         cx,
         panel_rect.bottom() + 18,
         Color::WHITE,
@@ -591,7 +678,7 @@ fn draw_menu(canvas: &mut WindowCanvas, game: &Game, fonts: &Fonts) {
     text_center(
         canvas,
         &fonts.small,
-        "PS4 pad:  D-pad / left stick: move     Cross: start     Circle / R2: boost     START: pause",
+        "PS4 pad:  D-pad / left stick: move     Cross: start     Circle / R2: boost     Square: shoot     START: pause",
         cx,
         panel_rect.bottom() + 44,
         Color::WHITE,

@@ -77,6 +77,7 @@ fn main() {
                     Keycode::D | Keycode::Right => game.turn(Direction::Right),
                     Keycode::W | Keycode::Up => game.turn(Direction::Up),
                     Keycode::S | Keycode::Down => game.turn(Direction::Down),
+                    Keycode::F | Keycode::J => game.fire(),
                     Keycode::P => game.toggle_pause(),
                     Keycode::C => {
                         if game.state == GameState::Menu {
@@ -126,6 +127,8 @@ fn main() {
                         GameState::Menu | GameState::GameOver => game.start(),
                         GameState::Playing | GameState::Paused => game.toggle_pause(),
                     },
+                    // Square shoots
+                    Button::X => game.fire(),
                     // Triangle continues a saved round, like C
                     Button::Y => {
                         if game.state == GameState::Menu {

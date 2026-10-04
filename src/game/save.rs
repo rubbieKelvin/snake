@@ -45,6 +45,13 @@ pub struct SaveData {
     viruses: Vec<ItemSave>,
     powers: Vec<ItemSave>,
     hearts: Vec<ItemSave>,
+    // added with shooting; older saves load with a full chamber
+    #[serde(default)]
+    ammo_drops: Vec<ItemSave>,
+    #[serde(default = "full_ammo")]
+    ammo: u8,
+    #[serde(default)]
+    ammo_timer: f64,
     enemies: Vec<EnemySave>,
     score: u32,
     lives: u8,
@@ -61,6 +68,10 @@ pub struct SaveData {
     power_timer: f64,
     enemy_spawn_timer: f64,
     enemies_spawned: usize,
+}
+
+fn full_ammo() -> u8 {
+    return MAX_AMMO;
 }
 
 /// Everything persisted between runs: the high score always, plus an unfinished round.
@@ -279,9 +290,16 @@ impl SaveData {
                 .enemies
                 .iter()
                 .all(|e| !e.body.is_empty() && e.body.iter().all(inside))
-            && [&self.eggs, &self.viruses, &self.powers, &self.hearts]
-                .iter()
-                .all(|list| list.iter().all(|i| inside(&i.pos)))
+            && [
+                &self.eggs,
+                &self.viruses,
+                &self.powers,
+                &self.hearts,
+                &self.ammo_drops,
+            ]
+            .iter()
+            .all(|list| list.iter().all(|i| inside(&i.pos)))
+            && self.ammo <= MAX_AMMO
             && self.lives >= 1
             && self.level >= 1;
     }
@@ -348,6 +366,9 @@ impl Game {
             viruses: items_to_save(&self.viruses),
             powers: items_to_save(&self.powers),
             hearts: items_to_save(&self.hearts),
+            ammo_drops: items_to_save(&self.ammo_drops),
+            ammo: self.ammo,
+            ammo_timer: self.ammo_timer,
             enemies: self
                 .enemies
                 .iter()
@@ -386,6 +407,12 @@ impl Game {
         self.viruses = items_from_save(&data.viruses);
         self.powers = items_from_save(&data.powers);
         self.hearts = items_from_save(&data.hearts);
+        self.ammo_drops = items_from_save(&data.ammo_drops);
+        self.ammo = data.ammo;
+        self.ammo_timer = data.ammo_timer;
+        self.fire_cooldown = 0.0;
+        // rounds in flight only live for a split second; they aren't worth keeping
+        self.bullets.clear();
         self.enemies = data
             .enemies
             .into_iter()
@@ -458,6 +485,8 @@ mod tests {
         assert_eq!(game.eggs.len(), loaded.eggs.len());
         assert_eq!(game.viruses.len(), loaded.viruses.len());
         assert_eq!(game.hearts.len(), loaded.hearts.len());
+        assert_eq!(game.ammo, loaded.ammo);
+        assert_eq!(game.ammo_drops.len(), loaded.ammo_drops.len());
 
         // a save from another board size is rejected
         assert!(!json_for_other_grid(&game).is_valid_for(grid));

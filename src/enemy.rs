@@ -14,6 +14,8 @@ pub struct Enemy {
     pub hunter: bool,
     pub pending_growth: usize,
     pub alive: bool,
+    /// time remaining in the white "just got shot" flash
+    pub hit_flash: f64,
 }
 
 impl Enemy {
@@ -26,6 +28,7 @@ impl Enemy {
             hunter,
             pending_growth: 0,
             alive: true,
+            hit_flash: 0.0,
         };
     }
 

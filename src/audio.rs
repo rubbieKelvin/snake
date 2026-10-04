@@ -17,6 +17,14 @@ pub enum Sfx {
     Crash,
     LevelUp,
     GameOver,
+    Shoot,
+    /// trigger pulled on an empty chamber
+    Empty,
+    Reload,
+    /// a bullet hit an enemy that survived it
+    Hit,
+    /// a bullet popped a virus
+    Pop,
 }
 
 #[derive(Clone, Copy)]
@@ -182,6 +190,20 @@ fn voices_for(sfx: Sfx, r: f32) -> Vec<Voice> {
             note(r, 220, 220, 330.0, 330.0, Triangle, 0.3),
             note(r, 440, 220, 262.0, 262.0, Triangle, 0.3),
             note(r, 660, 520, 196.0, 120.0, Triangle, 0.3),
+        ],
+        Sfx::Shoot => vec![
+            note(r, 0, 70, 1200.0, 300.0, Square, 0.12),
+            note(r, 0, 40, 0.0, 0.0, Noise, 0.12),
+        ],
+        Sfx::Empty => vec![note(r, 0, 40, 180.0, 180.0, Square, 0.1)],
+        Sfx::Reload => vec![
+            note(r, 0, 40, 0.0, 0.0, Noise, 0.18),
+            note(r, 80, 60, 700.0, 900.0, Square, 0.12),
+        ],
+        Sfx::Hit => vec![note(r, 0, 90, 500.0, 200.0, Square, 0.15)],
+        Sfx::Pop => vec![
+            note(r, 0, 120, 900.0, 150.0, Triangle, 0.3),
+            note(r, 0, 60, 0.0, 0.0, Noise, 0.12),
         ],
     }
 }

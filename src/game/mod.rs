@@ -23,6 +23,8 @@ pub struct Game {
     pub viruses: Vec<Collectible>,
     pub powers: Vec<Collectible>,
     pub hearts: Vec<Collectible>,
+    pub ammo_drops: Vec<Collectible>,
+    pub bullets: Vec<Bullet>,
     pub enemies: Vec<Enemy>,
     pub popups: Vec<Popup>,
     /// sound events waiting for the audio layer to play them
@@ -51,6 +53,11 @@ pub struct Game {
     pub freeze: f64,
     pub double: f64,
 
+    /// rounds left in the chamber
+    pub ammo: u8,
+    fire_cooldown: f64,
+    ammo_timer: f64,
+
     power_timer: f64,
     enemy_spawn_timer: f64,
     enemies_spawned: usize,
@@ -72,6 +79,8 @@ impl Game {
             viruses: Vec::new(),
             powers: Vec::new(),
             hearts: Vec::new(),
+            ammo_drops: Vec::new(),
+            bullets: Vec::new(),
             enemies: Vec::new(),
             popups: Vec::new(),
             sounds: Vec::new(),
@@ -92,6 +101,9 @@ impl Game {
             ghost: 0.0,
             freeze: 0.0,
             double: 0.0,
+            ammo: MAX_AMMO,
+            fire_cooldown: 0.0,
+            ammo_timer: 0.0,
             power_timer: 0.0,
             enemy_spawn_timer: 0.0,
             enemies_spawned: 0,
@@ -123,6 +135,9 @@ impl Game {
         self.ghost = 0.0;
         self.freeze = 0.0;
         self.double = 0.0;
+        self.ammo = MAX_AMMO;
+        self.fire_cooldown = 0.0;
+        self.ammo_timer = 0.0;
         self.power_timer = 0.0;
         self.enemy_spawn_timer = 0.0;
         self.enemies_spawned = 0;
@@ -131,6 +146,8 @@ impl Game {
         self.viruses.clear();
         self.powers.clear();
         self.hearts.clear();
+        self.ammo_drops.clear();
+        self.bullets.clear();
         self.enemies.clear();
         self.popups.clear();
 
@@ -176,6 +193,25 @@ impl Game {
             return;
         }
         self.queue.push(wanted);
+    }
+
+    /// Fires a round from the head in the direction of travel.
+    pub fn fire(&mut self) {
+        if self.state != GameState::Playing || self.fire_cooldown > 0.0 {
+            return;
+        }
+        self.fire_cooldown = FIRE_COOLDOWN;
+        if self.ammo == 0 {
+            self.sfx(Sfx::Empty);
+            self.popup(self.snake[0], "NO AMMO", Color::RGB(200, 200, 200));
+            return;
+        }
+        self.ammo -= 1;
+        self.sfx(Sfx::Shoot);
+        let start = step(self.grid, self.snake[0], self.dir);
+        self.bullets.push(Bullet::new(start, self.dir));
+        // point blank: whatever is right in front of the head is hit at once
+        self.resolve_bullets();
     }
 
     pub fn base_step_interval(&self) -> f64 {
@@ -224,6 +260,10 @@ impl Game {
         self.ghost = (self.ghost - delta).max(0.0);
         self.freeze = (self.freeze - delta).max(0.0);
         self.double = (self.double - delta).max(0.0);
+        self.fire_cooldown = (self.fire_cooldown - delta).max(0.0);
+        for enemy in self.enemies.iter_mut() {
+            enemy.hit_flash = (enemy.hit_flash - delta).max(0.0);
+        }
 
         for item in self.eggs.iter_mut().chain(self.powers.iter_mut()) {
             item.age += delta;
@@ -239,6 +279,16 @@ impl Game {
                 let pos = self.free_cell(0);
                 self.powers
                     .push(Collectible::new(pos, CollectibleType::Power(kind)));
+            }
+        }
+
+        self.ammo_timer += delta;
+        if self.ammo_timer >= AMMO_SPAWN_INTERVAL {
+            self.ammo_timer = 0.0;
+            if self.ammo_drops.len() < MAX_AMMO_DROPS {
+                let pos = self.free_cell(3);
+                self.ammo_drops
+                    .push(Collectible::new(pos, CollectibleType::Ammo));
             }
         }
 
@@ -259,7 +309,10 @@ impl Game {
         }
 
         if self.state == GameState::Playing {
+            self.update_bullets(delta);
             self.step_enemies(delta);
+            // an enemy may have crawled into a bullet
+            self.resolve_bullets();
         }
     }
 
@@ -399,6 +452,24 @@ impl Game {
             }
         }
 
+        // ammo: refills the chamber
+        if let Some(i) = self.ammo_drops.iter().position(|a| a.position == new_head) {
+            self.ammo_drops.remove(i);
+            if self.ammo < MAX_AMMO {
+                let gained = AMMO_PICKUP.min(MAX_AMMO - self.ammo);
+                self.ammo += gained;
+                self.sfx(Sfx::Reload);
+                self.popup(
+                    new_head,
+                    &format!("+{} AMMO", gained),
+                    Color::RGB(230, 190, 80),
+                );
+            } else {
+                // chamber already full: worth a few points instead
+                self.add_score(2, new_head);
+            }
+        }
+
         // power-up
         if let Some(i) = self.powers.iter().position(|p| p.position == new_head) {
             let power = self.powers.remove(i);
@@ -452,6 +523,75 @@ impl Game {
         if self.enemies[enemy].body.len() < 3 {
             self.kill_enemy(enemy);
         }
+    }
+
+    // ---- bullets ----
+
+    fn update_bullets(&mut self, delta: f64) {
+        let grid = self.grid;
+        for i in 0..self.bullets.len() {
+            self.bullets[i].timer += delta;
+            while !self.bullets[i].spent && self.bullets[i].timer >= BULLET_STEP_INTERVAL {
+                let bullet = &mut self.bullets[i];
+                bullet.timer -= BULLET_STEP_INTERVAL;
+                bullet.position = step(grid, bullet.position, bullet.dir);
+                bullet.travelled += 1;
+                self.bullet_hit(i);
+                if self.bullets[i].travelled >= BULLET_RANGE {
+                    self.bullets[i].spent = true;
+                }
+            }
+        }
+        self.bullets.retain(|b| !b.spent);
+        self.enemies.retain(|e| e.alive);
+    }
+
+    /// Checks every live bullet against whatever shares its cell.
+    fn resolve_bullets(&mut self) {
+        for i in 0..self.bullets.len() {
+            if !self.bullets[i].spent {
+                self.bullet_hit(i);
+            }
+        }
+        self.bullets.retain(|b| !b.spent);
+        self.enemies.retain(|e| e.alive);
+    }
+
+    /// A bullet pops a virus outright, or knocks one segment off an enemy snake.
+    fn bullet_hit(&mut self, i: usize) {
+        let at = self.bullets[i].position;
+        if let Some(v) = self.viruses.iter().position(|v| v.position == at) {
+            self.bullets[i].spent = true;
+            self.viruses.remove(v);
+            self.sfx(Sfx::Pop);
+            self.add_score(VIRUS_SHOT_BONUS, at);
+            return;
+        }
+        if let Some(e) = self
+            .enemies
+            .iter()
+            .position(|e| e.alive && e.body.contains(&at))
+        {
+            self.bullets[i].spent = true;
+            self.shoot_enemy(e, at);
+        }
+    }
+
+    /// An enemy's length is its life: each hit takes off its last segment, and
+    /// hitting its final segment destroys it.
+    fn shoot_enemy(&mut self, index: usize, at: Point) {
+        if self.enemies[index].body.len() <= 1 {
+            self.sfx(Sfx::Crash);
+            self.popup(at, "DESTROYED!", Color::RGB(255, 140, 0));
+            self.kill_enemy(index);
+            return;
+        }
+        let enemy = &mut self.enemies[index];
+        enemy.body.pop_back();
+        enemy.pending_growth = 0;
+        enemy.hit_flash = ENEMY_HIT_FLASH;
+        self.sfx(Sfx::Hit);
+        self.popup(at, "-1", Color::RGB(255, 140, 0));
     }
 
     fn kill_enemy(&mut self, index: usize) {
@@ -674,7 +814,8 @@ impl Game {
             || self.eggs.iter().any(|e| e.position == p)
             || self.viruses.iter().any(|v| v.position == p)
             || self.powers.iter().any(|v| v.position == p)
-            || self.hearts.iter().any(|v| v.position == p);
+            || self.hearts.iter().any(|v| v.position == p)
+            || self.ammo_drops.iter().any(|v| v.position == p);
     }
 
     /// A random cell not occupied by anything, at least `head_margin` cells from the head.
@@ -710,6 +851,9 @@ mod tests {
                 game.turn(dir);
             }
             game.set_boost(rand::random_bool(0.5));
+            if frame % 5 == 0 {
+                game.fire();
+            }
             if frame % 3000 == 0 {
                 game.score += 12; // push through levels quickly
                 game.add_score(1, Point::new(0, 0));
@@ -718,6 +862,81 @@ mod tests {
             game.sounds.clear();
             assert!(game.snake.len() >= 2);
             assert!(game.enemies.iter().all(|e| !e.body.is_empty()));
+            assert!(game.ammo <= MAX_AMMO);
         }
+    }
+
+    fn playing_game() -> Game {
+        let mut game = Game::new(Grid::for_screen(WINDOW_W, WINDOW_H));
+        game.start();
+        game.viruses.clear();
+        game.eggs.clear();
+        game.enemies.clear();
+        game.freeze = 100.0; // keep enemies still
+        game.enemy_spawn_timer = -1000.0;
+        game.ammo_timer = -1000.0;
+        game.power_timer = -1000.0;
+        return game;
+    }
+
+    /// Steps only the bullets, so the snake stays put.
+    fn fly_bullets(game: &mut Game, frames: u32) {
+        for _ in 0..frames {
+            game.update_bullets(0.016);
+            game.resolve_bullets();
+        }
+    }
+
+    #[test]
+    fn bullet_pops_a_virus() {
+        let mut game = playing_game();
+        let target = offset(game.grid, game.snake[0], 5, 0);
+        game.viruses
+            .push(Collectible::new(target, CollectibleType::Virus));
+        game.fire();
+        assert_eq!(game.ammo, MAX_AMMO - 1);
+        fly_bullets(&mut game, 30);
+        assert!(game.viruses.is_empty());
+        assert!(game.bullets.is_empty());
+    }
+
+    #[test]
+    fn bullets_shorten_enemies_until_destroyed() {
+        let mut game = playing_game();
+        let head = game.snake[0];
+        let body: VecDeque<Point> = (0..3).map(|i| offset(game.grid, head, 6, i - 1)).collect();
+        game.enemies.push(Enemy::new(body, Direction::Up, 0, false));
+        for shot in 1..=3 {
+            game.fire_cooldown = 0.0;
+            game.fire();
+            fly_bullets(&mut game, 30);
+            if shot < 3 {
+                assert_eq!(game.enemies[0].body.len(), 3 - shot);
+                // the segment in the line of fire must remain for the next shot
+                if !game.enemies[0]
+                    .body
+                    .contains(&offset(game.grid, head, 6, 0))
+                {
+                    game.enemies[0].body[0] = offset(game.grid, head, 6, 0);
+                }
+            }
+        }
+        assert!(game.enemies.is_empty());
+        assert_eq!(game.ammo, MAX_AMMO - 3);
+    }
+
+    #[test]
+    fn empty_chamber_does_not_fire_and_ammo_refills() {
+        let mut game = playing_game();
+        game.ammo = 0;
+        game.fire();
+        assert!(game.bullets.is_empty());
+
+        let next = step(game.grid, game.snake[0], game.dir);
+        game.ammo_drops
+            .push(Collectible::new(next, CollectibleType::Ammo));
+        game.step();
+        assert_eq!(game.ammo, AMMO_PICKUP);
+        assert!(game.ammo_drops.is_empty());
     }
 }

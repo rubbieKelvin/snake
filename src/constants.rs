@@ -39,6 +39,19 @@ pub const ENEMY_START_LEN: usize = 4;
 pub const ENEMY_MAX_LEN: usize = 14;
 pub const ENEMY_SPAWN_DELAY: f64 = 3.0;
 pub const ENEMY_CRASH_BONUS: u32 = 5;
+pub const ENEMY_HIT_FLASH: f64 = 0.25;
+
+// shooting
+pub const MAX_AMMO: u8 = 5;
+pub const AMMO_PICKUP: u8 = 3;
+pub const AMMO_SPAWN_INTERVAL: f64 = 9.0;
+pub const MAX_AMMO_DROPS: usize = 2;
+/// seconds per cell travelled
+pub const BULLET_STEP_INTERVAL: f64 = 0.025;
+/// cells a bullet flies before fizzling out
+pub const BULLET_RANGE: i32 = 25;
+pub const FIRE_COOLDOWN: f64 = 0.18;
+pub const VIRUS_SHOT_BONUS: u32 = 1;
 
 // game save file
 pub const GAMEDUMP_FILE: &str = ".gamedump";

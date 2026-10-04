@@ -1,7 +1,7 @@
 use crate::constants::*;
 use sdl2::pixels::Color;
-use serde::{Deserialize, Serialize};
 use sdl2::rect::Point;
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub enum Direction {
@@ -141,11 +141,15 @@ impl PowerKind {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum CollectibleType {
-    Egg { special: bool },
+    Egg {
+        special: bool,
+    },
     Virus,
     Power(PowerKind),
     /// restores a life; offered at the start of a level
     Heart,
+    /// refills the chamber
+    Ammo,
 }
 
 pub struct Collectible {
@@ -161,6 +165,29 @@ impl Collectible {
             position,
             class,
             age: 0.0,
+        };
+    }
+}
+
+/// A round fired from the player's head; travels one cell per BULLET_STEP_INTERVAL.
+pub struct Bullet {
+    pub position: Point,
+    pub dir: Direction,
+    pub timer: f64,
+    /// cells flown so far
+    pub travelled: i32,
+    /// hit something or ran out of range; removed at the end of the frame
+    pub spent: bool,
+}
+
+impl Bullet {
+    pub fn new(position: Point, dir: Direction) -> Self {
+        return Bullet {
+            position,
+            dir,
+            timer: 0.0,
+            travelled: 0,
+            spent: false,
         };
     }
 }
