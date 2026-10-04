@@ -203,7 +203,9 @@ impl Game {
 
     pub fn update(&mut self, delta: f64) {
         self.clock += delta;
+
         self.damage_flash = (self.damage_flash - delta).max(0.0);
+
         for popup in self.popups.iter_mut() {
             popup.age += delta;
         }
@@ -219,6 +221,7 @@ impl Game {
         }
 
         self.update_boost(delta);
+
         self.ghost = (self.ghost - delta).max(0.0);
         self.freeze = (self.freeze - delta).max(0.0);
         self.double = (self.double - delta).max(0.0);
@@ -250,6 +253,7 @@ impl Game {
 
         self.step_timer += delta;
         let interval = self.step_interval();
+
         while self.step_timer >= interval && self.state == GameState::Playing {
             self.step_timer -= interval;
             self.step();

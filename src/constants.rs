@@ -4,15 +4,14 @@ pub const CELL: u32 = 20;
 pub const WINDOW_W: u32 = 1400;
 pub const WINDOW_H: u32 = 800;
 
-// the header sits above the board and is not part of the playfield
-pub const HUD_H: i32 = 80;
+pub const HUD_H: i32 = 90;
 
 pub const START_LIVES: u8 = 3;
 pub const SCORE_PER_LEVEL: u32 = 10;
 
-pub const BASE_STEP_INTERVAL: f64 = 0.18;
+pub const BASE_STEP_INTERVAL: f64 = 0.12;
 pub const MIN_STEP_INTERVAL: f64 = 0.07;
-pub const STEP_SPEEDUP_PER_LEVEL: f64 = 0.012;
+pub const STEP_SPEEDUP_PER_LEVEL: f64 = 0.024;
 
 pub const SPECIAL_EGG_LIFETIME: f64 = 6.0;
 pub const HIT_TAIL_LOSS: usize = 3;
@@ -20,7 +19,7 @@ pub const DAMAGE_FLASH_TIME: f64 = 1.0;
 pub const RESTART_LOCKOUT: f64 = 0.8;
 pub const POPUP_LIFETIME: f64 = 1.1;
 
-// boost (hold SPACE / SHIFT): drains a 0..1 meter, refills when released
+// boost
 pub const BOOST_SPEED_FACTOR: f64 = 0.5;
 pub const BOOST_DRAIN: f64 = 0.45;
 pub const BOOST_REGEN: f64 = 0.18;
