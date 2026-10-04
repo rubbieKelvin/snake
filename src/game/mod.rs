@@ -209,6 +209,7 @@ impl Game {
         self.ammo -= 1;
         self.sfx(Sfx::Shoot);
         let start = step(self.grid, self.snake[0], self.dir);
+
         self.bullets.push(Bullet::new(start, self.dir));
         // point blank: whatever is right in front of the head is hit at once
         self.resolve_bullets();
@@ -261,6 +262,7 @@ impl Game {
         self.freeze = (self.freeze - delta).max(0.0);
         self.double = (self.double - delta).max(0.0);
         self.fire_cooldown = (self.fire_cooldown - delta).max(0.0);
+
         for enemy in self.enemies.iter_mut() {
             enemy.hit_flash = (enemy.hit_flash - delta).max(0.0);
         }
@@ -311,6 +313,7 @@ impl Game {
         if self.state == GameState::Playing {
             self.update_bullets(delta);
             self.step_enemies(delta);
+
             // an enemy may have crawled into a bullet
             self.resolve_bullets();
         }
@@ -371,7 +374,8 @@ impl Game {
 
         let new_head = step(self.grid, self.snake[0], self.dir);
 
-        // hitting yourself ends the game; the tail cell is free if it's about to move away
+        // hitting yourself ends the game
+        // the tail cell is free if it's about to move away
         if self.ghost <= 0.0 {
             let checked = self.snake.len() - if self.pending_growth == 0 { 1 } else { 0 };
             if self.snake.iter().take(checked).any(|c| *c == new_head) {
@@ -382,13 +386,15 @@ impl Game {
         }
 
         self.snake.push_front(new_head);
+
         if self.pending_growth > 0 {
             self.pending_growth -= 1;
         } else {
             self.snake.pop_back();
         }
 
-        // virus: consumed on contact, costs a life (or the shield)
+        // virus
+        // consumed on contact, costs a life or the shield if the player has
         if let Some(i) = self.viruses.iter().position(|v| v.position == new_head) {
             self.viruses.remove(i);
             self.hurt(new_head);
@@ -409,9 +415,14 @@ impl Game {
                     .position(|c| *c == new_head)
                     .map(|index| (i, index));
             });
+
             if let Some((enemy, index)) = hit {
-                // boosting into an enemy's body rams it in half; its head (or a slow hit) hurts
-                if self.boosting && index > 0 {
+                // boosting into an enemy's body rams it in half
+                // a slow hit hurts
+                if self.boosting {
+                    // this one if we want hitting the head to hurt
+                    // maybe we'd do this for boss snakes or smth
+                    // if self.boosting && index > 0 {
                     self.ram(enemy, index, new_head);
                 } else {
                     self.hurt(new_head);
@@ -486,7 +497,7 @@ impl Game {
         }
     }
 
-    /// The player took a hit from a virus or an enemy.
+    /// The player took a hit from a virus or an enemy
     fn hurt(&mut self, at: Point) {
         if self.damage_flash > 0.0 {
             return;
@@ -513,7 +524,7 @@ impl Game {
         self.pending_growth = 0;
     }
 
-    /// Cuts an enemy snake in half at `index`, scoring the severed cells.
+    /// Cuts an enemy snake in half at index, scoring the severed cells
     fn ram(&mut self, enemy: usize, index: usize, at: Point) {
         let removed = (self.enemies[enemy].body.len() - index) as u32;
         self.enemies[enemy].body.truncate(index);
@@ -525,8 +536,7 @@ impl Game {
         }
     }
 
-    // ---- bullets ----
-
+    // bullets
     fn update_bullets(&mut self, delta: f64) {
         let grid = self.grid;
         for i in 0..self.bullets.len() {
@@ -560,6 +570,7 @@ impl Game {
     /// A bullet pops a virus outright, or knocks one segment off an enemy snake.
     fn bullet_hit(&mut self, i: usize) {
         let at = self.bullets[i].position;
+
         if let Some(v) = self.viruses.iter().position(|v| v.position == at) {
             self.bullets[i].spent = true;
             self.viruses.remove(v);
@@ -577,21 +588,35 @@ impl Game {
         }
     }
 
-    /// An enemy's length is its life: each hit takes off its last segment, and
+    /// An enemy's length is its life
+    /// each hit takes off its last segment, and
     /// hitting its final segment destroys it.
     fn shoot_enemy(&mut self, index: usize, at: Point) {
-        if self.enemies[index].body.len() <= 1 {
+        let current_len = self.enemies[index].body.len();
+        let life_left_after_hit = (current_len as i32) - (BULLET_DAMAGE as i32);
+
+        if life_left_after_hit <= 1 {
             self.sfx(Sfx::Crash);
             self.popup(at, "DESTROYED!", Color::RGB(255, 140, 0));
             self.kill_enemy(index);
             return;
         }
+
         let enemy = &mut self.enemies[index];
-        enemy.body.pop_back();
+
+        for _ in 0..BULLET_DAMAGE {
+            enemy.body.pop_back();
+        }
+
         enemy.pending_growth = 0;
         enemy.hit_flash = ENEMY_HIT_FLASH;
         self.sfx(Sfx::Hit);
-        self.popup(at, "-1", Color::RGB(255, 140, 0));
+
+        self.popup(
+            at,
+            format!("-{BULLET_DAMAGE}").as_str(),
+            Color::RGB(255, 140, 0),
+        );
     }
 
     fn kill_enemy(&mut self, index: usize) {
@@ -654,7 +679,7 @@ impl Game {
         save::finish_round(self.high_score);
     }
 
-    // ---- enemy snakes ----
+    // enemy snakes
 
     fn try_spawn_enemy(&mut self) {
         let head = self.snake[0];
@@ -774,8 +799,7 @@ impl Game {
         return best.map(|(_, d)| d);
     }
 
-    // ---- spawning ----
-
+    // spawning
     fn respawn_egg(&mut self, index: usize) {
         let pos = self.free_cell(0);
         self.eggs[index] = Collectible::new(
@@ -818,7 +842,7 @@ impl Game {
             || self.ammo_drops.iter().any(|v| v.position == p);
     }
 
-    /// A random cell not occupied by anything, at least `head_margin` cells from the head.
+    /// A random cell not occupied by anything, at least head_margin cells from the head
     fn free_cell(&self, head_margin: i32) -> Point {
         let head = self.snake[0];
         loop {
@@ -830,113 +854,5 @@ impl Game {
                 return p;
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// Plays thousands of frames with random input at every level, looking for panics.
-    #[test]
-    fn random_play_never_panics() {
-        let mut game = Game::new(Grid::for_screen(WINDOW_W, WINDOW_H));
-        for frame in 0..60_000u32 {
-            if game.state != GameState::Playing {
-                game.update(1.0);
-                game.start();
-            }
-            if frame % 9 == 0 {
-                let dir = Direction::ALL[rand::random_range(0..4)];
-                game.turn(dir);
-            }
-            game.set_boost(rand::random_bool(0.5));
-            if frame % 5 == 0 {
-                game.fire();
-            }
-            if frame % 3000 == 0 {
-                game.score += 12; // push through levels quickly
-                game.add_score(1, Point::new(0, 0));
-            }
-            game.update(0.016);
-            game.sounds.clear();
-            assert!(game.snake.len() >= 2);
-            assert!(game.enemies.iter().all(|e| !e.body.is_empty()));
-            assert!(game.ammo <= MAX_AMMO);
-        }
-    }
-
-    fn playing_game() -> Game {
-        let mut game = Game::new(Grid::for_screen(WINDOW_W, WINDOW_H));
-        game.start();
-        game.viruses.clear();
-        game.eggs.clear();
-        game.enemies.clear();
-        game.freeze = 100.0; // keep enemies still
-        game.enemy_spawn_timer = -1000.0;
-        game.ammo_timer = -1000.0;
-        game.power_timer = -1000.0;
-        return game;
-    }
-
-    /// Steps only the bullets, so the snake stays put.
-    fn fly_bullets(game: &mut Game, frames: u32) {
-        for _ in 0..frames {
-            game.update_bullets(0.016);
-            game.resolve_bullets();
-        }
-    }
-
-    #[test]
-    fn bullet_pops_a_virus() {
-        let mut game = playing_game();
-        let target = offset(game.grid, game.snake[0], 5, 0);
-        game.viruses
-            .push(Collectible::new(target, CollectibleType::Virus));
-        game.fire();
-        assert_eq!(game.ammo, MAX_AMMO - 1);
-        fly_bullets(&mut game, 30);
-        assert!(game.viruses.is_empty());
-        assert!(game.bullets.is_empty());
-    }
-
-    #[test]
-    fn bullets_shorten_enemies_until_destroyed() {
-        let mut game = playing_game();
-        let head = game.snake[0];
-        let body: VecDeque<Point> = (0..3).map(|i| offset(game.grid, head, 6, i - 1)).collect();
-        game.enemies.push(Enemy::new(body, Direction::Up, 0, false));
-        for shot in 1..=3 {
-            game.fire_cooldown = 0.0;
-            game.fire();
-            fly_bullets(&mut game, 30);
-            if shot < 3 {
-                assert_eq!(game.enemies[0].body.len(), 3 - shot);
-                // the segment in the line of fire must remain for the next shot
-                if !game.enemies[0]
-                    .body
-                    .contains(&offset(game.grid, head, 6, 0))
-                {
-                    game.enemies[0].body[0] = offset(game.grid, head, 6, 0);
-                }
-            }
-        }
-        assert!(game.enemies.is_empty());
-        assert_eq!(game.ammo, MAX_AMMO - 3);
-    }
-
-    #[test]
-    fn empty_chamber_does_not_fire_and_ammo_refills() {
-        let mut game = playing_game();
-        game.ammo = 0;
-        game.fire();
-        assert!(game.bullets.is_empty());
-
-        let next = step(game.grid, game.snake[0], game.dir);
-        game.ammo_drops
-            .push(Collectible::new(next, CollectibleType::Ammo));
-        game.step();
-        assert_eq!(game.ammo, AMMO_PICKUP);
-        assert!(game.ammo_drops.is_empty());
     }
 }

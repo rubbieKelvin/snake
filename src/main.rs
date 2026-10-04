@@ -48,14 +48,16 @@ fn main() {
     let mut canvas = window.into_canvas().present_vsync().build().unwrap();
     let mut event_pump = sdl_context.event_pump().unwrap();
 
-    // audio is optional: without a device the game simply runs silent
+    // audio is optional
+    // without a device the game simply runs silent
     let mut audio = sdl_context.audio().ok().and_then(|a| Audio::new(&a));
 
-    // gamepads are optional too: a controller plugged in later is picked up on the fly
+    // gamepads are optional, a controller plugged in later is picked up on the fly
     let controller_subsystem = sdl_context.game_controller().ok();
     let mut controller: Option<GameController> = controller_subsystem
         .as_ref()
         .and_then(open_first_controller);
+
     let mut last_stick: Option<Direction> = None;
 
     // cells keep their size; a bigger screen just gives a bigger board
@@ -184,13 +186,15 @@ fn main() {
         }
     }
 
-    // quitting mid-round keeps it, so it can be continued next time
+    // quitting mid round keeps it
+    // so it can be continued next time
     game.save_to_disk();
 }
 
-/// Opens the first connected pad, if any. Returns `None` when none is plugged in.
+/// Opens the first connected pad, if any
 fn open_first_controller(subsystem: &GameControllerSubsystem) -> Option<GameController> {
     let count = subsystem.num_joysticks().ok()?;
+
     return (0..count).find_map(|i| {
         if subsystem.is_game_controller(i) {
             subsystem.open(i).ok()
@@ -200,7 +204,7 @@ fn open_first_controller(subsystem: &GameControllerSubsystem) -> Option<GameCont
     });
 }
 
-/// Left stick direction, ignoring drift around center.
+/// Left stick direction, ignoring drift around center
 fn stick_direction(controller: &GameController) -> Option<Direction> {
     const DEAD_ZONE: i16 = 12000;
     let x = controller.axis(Axis::LeftX).saturating_abs();
