@@ -1,4 +1,4 @@
-pub const CELL: u32 = 40;
+pub const CELL: u32 = 30;
 
 // design size
 pub const WINDOW_W: u32 = 1400;
@@ -40,5 +40,5 @@ pub const ENEMY_MAX_LEN: usize = 14;
 pub const ENEMY_SPAWN_DELAY: f64 = 3.0;
 pub const ENEMY_CRASH_BONUS: u32 = 5;
 
-// one zipped dump holds both the high score and any unfinished round
+// game save file
 pub const GAMEDUMP_FILE: &str = ".gamedump";

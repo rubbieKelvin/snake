@@ -10,7 +10,7 @@ Snake game implemented in [Rust](https://www.rust-lang.org/learn/get-started) us
 - High-paced: quick base speed, faster ramp-up, and a quick-tempo enemy
 - **PS4 / gamepad support** via SDL2's controller API (D-pad + left stick, hot-plug)
 - Title screen, pause, game over and instant restart (ENTER)
-- **Enemy snakes** (from level 2) that hunt eggs or try to cut you off; they crash into things and leave golden eggs. They are drawn as hollow, dotted bodies with a spiked, fanged head, so they never read as the player's solid snake
+- **Enemy snakes** (from level 2) that hunt eggs or try to cut you off; they crash into things and leave golden eggs. They are drawn as solid armoured segments with a dark outline, a bright scale plate and a spiked, fanged head, so they stay clearly visible and never read as the player's plain blocks
 - **Boost**: hold SPACE/SHIFT to go twice as fast, drawing on a meter that refills. Boost into an enemy's body to ram it in half
 - **Power-ups**: Shield (absorbs a hit), Ghost (pass through bodies), Freeze (stops enemies), 2x Score
 - Cyan eggs (+1) and golden eggs (+3, they vanish)

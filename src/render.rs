@@ -277,13 +277,13 @@ fn draw_enemies(canvas: &mut WindowCanvas, game: &Game) {
     for enemy in &game.enemies {
         let (r, g, b) = ENEMY_PALETTE[enemy.color_idx % ENEMY_PALETTE.len()];
         let len = enemy.body.len();
-        let shade = |i: usize| 1.0 - 0.45 * (i as f32 / len as f32);
-        let seg_color = |i: usize| {
-            let s = shade(i);
+        // fade toward the tail
+        let seg = |i: usize| -> (u8, u8, u8) {
+            let s = 1.0 - 0.45 * (i as f32 / len as f32);
             if frozen {
-                Color::RGB((170.0 * s) as u8, (225.0 * s) as u8, (255.0 * s) as u8)
+                ((170.0 * s) as u8, (225.0 * s) as u8, (255.0 * s) as u8)
             } else {
-                Color::RGB(
+                (
                     (r as f32 * s) as u8,
                     (g as f32 * s) as u8,
                     (b as f32 * s) as u8,
@@ -291,18 +291,43 @@ fn draw_enemies(canvas: &mut WindowCanvas, game: &Game) {
             }
         };
 
-        // hollow, dotted body drawn tail-first; the head is painted on top
+        // solid, fully-covered body (visibility first), drawn tail-first with the
+        // head painted on top
         for (i, cell) in enemy.body.iter().enumerate().rev() {
             if i == 0 {
                 continue;
             }
             let rect = cell_rect(&grid, *cell);
-            let color = seg_color(i);
-            outline(canvas, color, inset(rect, 2));
+            let (cr, cg, cb) = seg(i);
+            fill(canvas, Color::RGB(cr, cg, cb), rect);
+            outline(canvas, Color::RGB(20, 20, 20), rect);
+            // a lighter plate so an enemy still reads differently from the
+            // player's plain blocks, without giving up coverage
             let c = rect.center();
-            diamond(canvas, c.x, c.y, 3, color);
+            diamond(
+                canvas,
+                c.x,
+                c.y,
+                4,
+                Color::RGB(
+                    cr.saturating_add(80),
+                    cg.saturating_add(80),
+                    cb.saturating_add(80),
+                ),
+            );
         }
-        enemy_head(canvas, cell_rect(&grid, enemy.head()), enemy.dir, seg_color(0));
+
+        let (hr, hg, hb) = seg(0);
+        enemy_head(
+            canvas,
+            cell_rect(&grid, enemy.head()),
+            enemy.dir,
+            Color::RGB(
+                hr.saturating_add(40),
+                hg.saturating_add(40),
+                hb.saturating_add(40),
+            ),
+        );
     }
 }
 
