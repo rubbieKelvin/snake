@@ -15,7 +15,7 @@ Snake game implemented in [Rust](https://www.rust-lang.org/learn/get-started) us
 - Red viruses: each hit costs a life and part of your tail (3 lives)
 - Levels: speed rises and more viruses and enemies appear every 10 points
 - HUD with level progress, lives, boost meter and active power timers; floating score popups
-- Persistent high score (`highscore.txt`)
+- Persistent high score and resumable round, stored together in a zipped `game.gamedump`
 
 ## Requirements
 To run this game, you need:
@@ -60,6 +60,8 @@ The game uses the following Rust crates:
 - `sdl2` for graphics, events, and rendering
 - `sdl2::ttf` for text rendering
 - `rand` for generating random positions
+- `serde` / `serde_json` for the saved game dump
+- `flate2` / `crc32fast` for the deflated zip container (`game.gamedump`)
 
 ## Future Improvements
 - Sound effects (needs SDL2_mixer)

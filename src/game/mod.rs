@@ -1,5 +1,4 @@
 use std::collections::VecDeque;
-use std::fs;
 
 use sdl2::pixels::Color;
 use sdl2::rect::Point;
@@ -77,7 +76,7 @@ impl Game {
             popups: Vec::new(),
             sounds: Vec::new(),
             score: 0,
-            high_score: load_high_score(),
+            high_score: save::load_high_score(),
             new_high_score: false,
             lives: START_LIVES,
             level: 1,
@@ -507,13 +506,12 @@ impl Game {
         self.sfx(Sfx::GameOver);
         self.over_age = 0.0;
         self.boosting = false;
-        // a finished round can't be continued
-        save::delete_save();
         if self.score > self.high_score {
             self.high_score = self.score;
             self.new_high_score = true;
-            save_high_score(self.high_score);
         }
+        // a finished round can't be continued, but its score is kept
+        save::finish_round(self.high_score);
     }
 
     // ---- enemy snakes ----
@@ -691,20 +689,6 @@ impl Game {
                 return p;
             }
         }
-    }
-}
-
-fn load_high_score() -> u32 {
-    return fs::read_to_string(HIGH_SCORE_FILE)
-        .ok()
-        .and_then(|s| s.trim().parse().ok())
-        .unwrap_or(0);
-}
-
-fn save_high_score(score: u32) {
-    // best effort: failing to save shouldn't crash the game (and tests mustn't touch the file)
-    if cfg!(not(test)) {
-        let _ = fs::write(HIGH_SCORE_FILE, score.to_string());
     }
 }
 

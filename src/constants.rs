@@ -40,4 +40,5 @@ pub const ENEMY_MAX_LEN: usize = 14;
 pub const ENEMY_SPAWN_DELAY: f64 = 3.0;
 pub const ENEMY_CRASH_BONUS: u32 = 5;
 
-pub const HIGH_SCORE_FILE: &str = "highscore.txt";
+// one zipped dump holds both the high score and any unfinished round
+pub const GAMEDUMP_FILE: &str = "game.gamedump";
