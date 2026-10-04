@@ -69,11 +69,13 @@ The game uses the following Rust crates:
 - `rand` for generating random positions
 - `serde` / `serde_json` for the saved game dump
 - `flate2` / `crc32fast` for the deflated zip container (`game.gamedump`)
+- `lewton` for decoding the OGG sound effects
 
 ## Future Improvements
-- Sound effects (needs SDL2_mixer)
 - Textures/sprites
 - Difficulty selection and power-ups
 
 ## License
 This project is licensed under the MIT License.
+
+Sound effects in `assets/sounds` are from [Kenney's Sci-Fi Sounds](https://www.kenney.nl) (CC0).
