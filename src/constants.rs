@@ -1,4 +1,4 @@
-pub const CELL: u32 = 20;
+pub const CELL: u32 = 40;
 
 // design size: the menus are laid out for this, and it is the size used if fullscreen fails
 pub const WINDOW_W: u32 = 1400;
@@ -41,4 +41,4 @@ pub const ENEMY_SPAWN_DELAY: f64 = 3.0;
 pub const ENEMY_CRASH_BONUS: u32 = 5;
 
 // one zipped dump holds both the high score and any unfinished round
-pub const GAMEDUMP_FILE: &str = "game.gamedump";
+pub const GAMEDUMP_FILE: &str = ".gamedump";
