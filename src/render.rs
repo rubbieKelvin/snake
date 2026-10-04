@@ -678,7 +678,7 @@ fn draw_menu(canvas: &mut WindowCanvas, game: &Game, fonts: &Fonts) {
     text_center(
         canvas,
         &fonts.small,
-        "PS4 pad:  D-pad / left stick: move     Cross: start     Circle / R2: boost     Square: shoot     START: pause",
+        "PS4 pad:  D-pad / left stick: move     Cross: start / shoot     L2 / R2 / Circle: boost     START: pause",
         cx,
         panel_rect.bottom() + 44,
         Color::WHITE,

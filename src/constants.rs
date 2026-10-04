@@ -42,7 +42,7 @@ pub const ENEMY_CRASH_BONUS: u32 = 5;
 pub const ENEMY_HIT_FLASH: f64 = 0.25;
 
 // shooting
-pub const MAX_AMMO: u8 = 5;
+pub const MAX_AMMO: u8 = 10;
 pub const AMMO_PICKUP: u8 = 3;
 pub const AMMO_SPAWN_INTERVAL: f64 = 9.0;
 pub const MAX_AMMO_DROPS: usize = 2;

@@ -116,19 +116,17 @@ fn main() {
                     Button::DPadRight => game.turn(Direction::Right),
                     Button::DPadUp => game.turn(Direction::Up),
                     Button::DPadDown => game.turn(Direction::Down),
-                    // Cross (bottom face button) starts and resumes, like ENTER
+                    // Cross (bottom face button) starts and resumes like ENTER, and shoots in play
                     Button::A => match game.state {
                         GameState::Menu | GameState::GameOver => game.start(),
                         GameState::Paused => game.toggle_pause(),
-                        GameState::Playing => {}
+                        GameState::Playing => game.fire(),
                     },
                     // Start/Options pauses, or starts from a menu
                     Button::Start => match game.state {
                         GameState::Menu | GameState::GameOver => game.start(),
                         GameState::Playing | GameState::Paused => game.toggle_pause(),
                     },
-                    // Square shoots
-                    Button::X => game.fire(),
                     // Triangle continues a saved round, like C
                     Button::Y => {
                         if game.state == GameState::Menu {
@@ -146,7 +144,6 @@ fn main() {
         let keys = event_pump.keyboard_state();
         let pad_boost = controller.as_ref().is_some_and(|c| {
             c.button(Button::B)
-                || c.button(Button::RightShoulder)
                 || c.axis(Axis::TriggerRight) > 12000
                 || c.axis(Axis::TriggerLeft) > 12000
         });
