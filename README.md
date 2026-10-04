@@ -7,8 +7,10 @@
 Snake game implemented in [Rust](https://www.rust-lang.org/learn/get-started) using the [SDL2](https://wiki.libsdl.org/SDL2/FrontPage) library. Collect eggs to grow longer while avoiding self-collision. The game supports teleporting at screen edges, and visual feedback when attempting illegal moves.
 
 ## Features
+- High-paced: quick base speed, faster ramp-up, and a quick-tempo enemy
+- **PS4 / gamepad support** via SDL2's controller API (D-pad + left stick, hot-plug)
 - Title screen, pause, game over and instant restart (ENTER)
-- **Enemy snakes** (from level 2) that hunt eggs or try to cut you off; they crash into things and leave golden eggs
+- **Enemy snakes** (from level 2) that hunt eggs or try to cut you off; they crash into things and leave golden eggs. They are drawn as hollow, dotted bodies with a spiked, fanged head, so they never read as the player's solid snake
 - **Boost**: hold SPACE/SHIFT to go twice as fast, drawing on a meter that refills. Boost into an enemy's body to ram it in half
 - **Power-ups**: Shield (absorbs a hit), Ghost (pass through bodies), Freeze (stops enemies), 2x Score
 - Cyan eggs (+1) and golden eggs (+3, they vanish)
@@ -49,6 +51,11 @@ To run this game, you need:
 | SPACE / SHIFT (hold) | Boost  |
 | ENTER    | Start / restart      |
 | ESC      | Quit the Game        |
+| D-pad / left stick | Move (gamepad)  |
+| Cross (A) | Start / resume (gamepad) |
+| Circle (B) / R2 | Boost (hold, gamepad) |
+| START / OPTIONS | Pause / resume (gamepad) |
+| Triangle (Y) | Continue saved round (gamepad) |
 
 ## How to Play
 - Eat eggs to grow and score; avoid viruses, enemy snakes and your own body.

@@ -1,2 +1,3 @@
 /target
-game.gamedump
+.gamedump
+.DS_Store

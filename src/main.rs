@@ -1,8 +1,10 @@
 use std::time::{Duration, Instant};
 
 use sdl2::{
+    controller::{Axis, Button, GameController},
     event::Event,
     keyboard::{Keycode, Scancode},
+    GameControllerSubsystem,
 };
 
 use audio::Audio;
@@ -49,6 +51,13 @@ fn main() {
     // audio is optional: without a device the game simply runs silent
     let mut audio = sdl_context.audio().ok().and_then(|a| Audio::new(&a));
 
+    // gamepads are optional too: a controller plugged in later is picked up on the fly
+    let controller_subsystem = sdl_context.game_controller().ok();
+    let mut controller: Option<GameController> = controller_subsystem
+        .as_ref()
+        .and_then(open_first_controller);
+    let mut last_stick: Option<Direction> = None;
+
     // cells keep their size; a bigger screen just gives a bigger board
     let (screen_w, screen_h) = canvas.window().size();
     let mut game = Game::new(Grid::for_screen(screen_w, screen_h));
@@ -86,17 +95,73 @@ fn main() {
                     },
                     _ => {}
                 },
+                Event::ControllerDeviceAdded { which, .. } => {
+                    if controller.is_none() {
+                        controller = controller_subsystem
+                            .as_ref()
+                            .and_then(|sub| sub.open(which).ok());
+                    }
+                }
+                Event::ControllerDeviceRemoved { which, .. } => {
+                    if controller
+                        .as_ref()
+                        .is_some_and(|c| c.instance_id() == which)
+                    {
+                        controller = None;
+                    }
+                }
+                Event::ControllerButtonDown { button, .. } => match button {
+                    Button::DPadLeft => game.turn(Direction::Left),
+                    Button::DPadRight => game.turn(Direction::Right),
+                    Button::DPadUp => game.turn(Direction::Up),
+                    Button::DPadDown => game.turn(Direction::Down),
+                    // Cross (bottom face button) starts and resumes, like ENTER
+                    Button::A => match game.state {
+                        GameState::Menu | GameState::GameOver => game.start(),
+                        GameState::Paused => game.toggle_pause(),
+                        GameState::Playing => {}
+                    },
+                    // Start/Options pauses, or starts from a menu
+                    Button::Start => match game.state {
+                        GameState::Menu | GameState::GameOver => game.start(),
+                        GameState::Playing | GameState::Paused => game.toggle_pause(),
+                    },
+                    // Triangle continues a saved round, like C
+                    Button::Y => {
+                        if game.state == GameState::Menu {
+                            game.continue_game();
+                        }
+                    }
+                    _ => {}
+                },
                 _ => {}
             }
         }
 
-        // boost is a held key, so poll it rather than reacting to events
+        // boost is a held input, so poll the keyboard and the pad rather than
+        // reacting to events
         let keys = event_pump.keyboard_state();
+        let pad_boost = controller.as_ref().is_some_and(|c| {
+            c.button(Button::B)
+                || c.button(Button::RightShoulder)
+                || c.axis(Axis::TriggerRight) > 12000
+                || c.axis(Axis::TriggerLeft) > 12000
+        });
         game.set_boost(
             keys.is_scancode_pressed(Scancode::Space)
                 || keys.is_scancode_pressed(Scancode::LShift)
-                || keys.is_scancode_pressed(Scancode::RShift),
+                || keys.is_scancode_pressed(Scancode::RShift)
+                || pad_boost,
         );
+
+        // left stick steering, edge-triggered so it can't spam the turn queue
+        let stick = controller.as_ref().and_then(stick_direction);
+        if stick != last_stick {
+            if let Some(dir) = stick {
+                game.turn(dir);
+            }
+            last_stick = stick;
+        }
 
         let now = Instant::now();
         // clamp so a window drag or hiccup doesn't make the snake lurch
@@ -121,4 +186,37 @@ fn main() {
 
     // quitting mid-round keeps it, so it can be continued next time
     game.save_to_disk();
+}
+
+/// Opens the first connected pad, if any. Returns `None` when none is plugged in.
+fn open_first_controller(subsystem: &GameControllerSubsystem) -> Option<GameController> {
+    let count = subsystem.num_joysticks().ok()?;
+    return (0..count).find_map(|i| {
+        if subsystem.is_game_controller(i) {
+            subsystem.open(i).ok()
+        } else {
+            None
+        }
+    });
+}
+
+/// Left stick direction, ignoring drift around center.
+fn stick_direction(controller: &GameController) -> Option<Direction> {
+    const DEAD_ZONE: i16 = 12000;
+    let x = controller.axis(Axis::LeftX).saturating_abs();
+    let y = controller.axis(Axis::LeftY).saturating_abs();
+    if x < DEAD_ZONE && y < DEAD_ZONE {
+        return None;
+    }
+    return Some(if x > y {
+        if controller.axis(Axis::LeftX) > 0 {
+            Direction::Right
+        } else {
+            Direction::Left
+        }
+    } else if controller.axis(Axis::LeftY) > 0 {
+        Direction::Down
+    } else {
+        Direction::Up
+    });
 }

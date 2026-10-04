@@ -1,6 +1,6 @@
 pub const CELL: u32 = 40;
 
-// design size: the menus are laid out for this, and it is the size used if fullscreen fails
+// design size
 pub const WINDOW_W: u32 = 1400;
 pub const WINDOW_H: u32 = 800;
 

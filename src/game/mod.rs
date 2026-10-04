@@ -193,7 +193,7 @@ impl Game {
     }
 
     fn enemy_interval(&self) -> f64 {
-        return (self.base_step_interval() + 0.05).max(0.11);
+        return (self.base_step_interval() + 0.045).max(0.10);
     }
 
     fn enemy_target(&self) -> usize {

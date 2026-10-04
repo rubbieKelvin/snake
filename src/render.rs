@@ -226,35 +226,83 @@ fn eyes(canvas: &mut WindowCanvas, grid: Grid, cell: Point, dir: Direction, colo
     }
 }
 
+/// Filled diamond, the enemy's scale pattern. The player's snake is made of
+/// solid blocks, so a dotted, hollow body reads as a different creature at a glance.
+fn diamond(canvas: &mut WindowCanvas, cx: i32, cy: i32, half: i32, color: Color) {
+    for dy in -half..=half {
+        let w = half - dy.abs();
+        fill(canvas, color, Rect::new(cx - w, cy + dy, (w * 2 + 1) as u32, 1));
+    }
+}
+
+/// Spiked, fanged and angry, so an enemy head never reads as the player's block.
+fn enemy_head(canvas: &mut WindowCanvas, rect: Rect, dir: Direction, color: Color) {
+    let dark = Color::RGB(20, 20, 20);
+    fill(canvas, color, rect);
+    outline(canvas, dark, rect);
+
+    let (dx, dy) = dir.delta();
+    // perpendicular axis, for placing things to either side of the heading
+    let (px, py) = (dy.abs(), dx.abs());
+    let c = rect.center();
+    let (fx, fy) = (c.x + dx * 8, c.y + dy * 8);
+
+    // horns on the leading edge, then white fangs in front of them
+    for side in [-1, 1] {
+        fill(
+            canvas,
+            color,
+            Rect::new(fx + px * side * 6 - 2, fy + py * side * 6 - 2, 5, 5),
+        );
+    }
+    for side in [-1, 1] {
+        fill(
+            canvas,
+            Color::RGB(250, 250, 250),
+            Rect::new(fx + px * side * 3 - 1, fy + py * side * 3 - 1, 3, 3),
+        );
+    }
+    // slanted red eyes under dark brows
+    for side in [-1, 1] {
+        let ex = c.x - dx * 2 + px * side * 5;
+        let ey = c.y - dy * 2 + py * side * 5;
+        fill(canvas, dark, Rect::new(ex - 3 + dx * 2, ey - 3 + dy * 2, 6, 2));
+        fill(canvas, Color::RGB(255, 40, 40), Rect::new(ex - 2, ey - 2, 4, 4));
+    }
+}
+
 fn draw_enemies(canvas: &mut WindowCanvas, game: &Game) {
     let grid = game.grid;
     let frozen = game.freeze > 0.0;
     for enemy in &game.enemies {
         let (r, g, b) = ENEMY_PALETTE[enemy.color_idx % ENEMY_PALETTE.len()];
         let len = enemy.body.len();
-        for (i, cell) in enemy.body.iter().enumerate() {
-            // fade toward the tail
-            let shade = 1.0 - 0.45 * (i as f32 / len as f32);
-            let color = if frozen {
-                Color::RGB(
-                    (170.0 * shade) as u8,
-                    (225.0 * shade) as u8,
-                    (255.0 * shade) as u8,
-                )
+        let shade = |i: usize| 1.0 - 0.45 * (i as f32 / len as f32);
+        let seg_color = |i: usize| {
+            let s = shade(i);
+            if frozen {
+                Color::RGB((170.0 * s) as u8, (225.0 * s) as u8, (255.0 * s) as u8)
             } else {
                 Color::RGB(
-                    (r as f32 * shade) as u8,
-                    (g as f32 * shade) as u8,
-                    (b as f32 * shade) as u8,
+                    (r as f32 * s) as u8,
+                    (g as f32 * s) as u8,
+                    (b as f32 * s) as u8,
                 )
-            };
-            let rect = cell_rect(&grid, *cell);
-            fill(canvas, color, if i == 0 { rect } else { inset(rect, 1) });
-            if i == 0 {
-                outline(canvas, Color::RGB(20, 20, 20), rect);
             }
+        };
+
+        // hollow, dotted body drawn tail-first; the head is painted on top
+        for (i, cell) in enemy.body.iter().enumerate().rev() {
+            if i == 0 {
+                continue;
+            }
+            let rect = cell_rect(&grid, *cell);
+            let color = seg_color(i);
+            outline(canvas, color, inset(rect, 2));
+            let c = rect.center();
+            diamond(canvas, c.x, c.y, 3, color);
         }
-        eyes(canvas, grid, enemy.head(), enemy.dir, Color::RGB(220, 20, 20));
+        enemy_head(canvas, cell_rect(&grid, enemy.head()), enemy.dir, seg_color(0));
     }
 }
 
@@ -512,7 +560,15 @@ fn draw_menu(canvas: &mut WindowCanvas, game: &Game, fonts: &Fonts) {
         &fonts.small,
         "WASD / arrows: move     SPACE / SHIFT (hold): boost     P: pause     M: mute     ESC: quit",
         cx,
-        panel_rect.bottom() + 20,
+        panel_rect.bottom() + 18,
+        Color::WHITE,
+    );
+    text_center(
+        canvas,
+        &fonts.small,
+        "PS4 pad:  D-pad / left stick: move     Cross: start     Circle / R2: boost     START: pause",
+        cx,
+        panel_rect.bottom() + 44,
         Color::WHITE,
     );
     if game.high_score > 0 {
@@ -521,7 +577,7 @@ fn draw_menu(canvas: &mut WindowCanvas, game: &Game, fonts: &Fonts) {
             &fonts.normal,
             &format!("Best: {}", game.high_score),
             cx,
-            panel_rect.bottom() + 60,
+            panel_rect.bottom() + 86,
             Color::YELLOW,
         );
     }
